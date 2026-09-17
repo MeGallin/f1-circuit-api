@@ -2,11 +2,29 @@ import { randomUUID } from 'node:crypto';
 import { hash, dataset } from '../models/dataset.js';
 import { normalizeWeekend } from '../models/normalization.js';
 import { validateSchema } from '../schemas/contract.js';
+import { reconcileDataset } from '../reconciliation/datasets.js';
 export class SyncService {
   constructor(repository) {
     this.repository = repository;
   }
   async publish(bundle, provider, version = null) {
+    const current = await this.repository.snapshot();
+    if (current) {
+      bundle.eventIds = {};
+      for (const race of bundle.calendar) {
+        const alias = await this.repository.resolve(
+          `race:${race.season}:${race.round}`,
+          current.id,
+        );
+        if (!alias) continue;
+        const prior = await this.repository.get(`event:${alias}`, current.id);
+        if (prior && prior.items[0].event.circuit.id !== `circuit:${race.Circuit.circuitId}`)
+          throw new Error(
+            'Existing event circuit differs; reviewed source identity mapping is required.',
+          );
+        bundle.eventIds[race.round] = alias;
+      }
+    }
     const retrievedAt = new Date().toISOString();
     const sources = [
       {
@@ -50,6 +68,28 @@ export class SyncService {
       }
       if (current) {
         const previous = await repo.get(set.key, current.id);
+        if (set.key.startsWith('events:') && previous) {
+          const old = new Map(previous.items.map((r) => [r.id, r]));
+          set.items = set.items.map((r) =>
+            old.get(r.id)?.status === 'completed' && r.status === 'unknown'
+              ? { ...r, status: 'completed' }
+              : r,
+          );
+        }
+        if (
+          /^standings:\d+:(drivers|constructors)$/.test(set.key) &&
+          previous?.items.length &&
+          set.items.length
+        ) {
+          const oldRound = Number(previous.items[0].standingSnapshotId.split(':').at(-1));
+          const newRound = Number(set.items[0].standingSnapshotId.split(':').at(-1));
+          if (oldRound > newRound) {
+            Object.assign(set, previous);
+          }
+        }
+        if (previous?.items.length && set.items.length) {
+          Object.assign(set, reconcileDataset(previous, set));
+        }
         if (previous?.items.length && set.items.length === 0) {
           set.items = previous.items;
           set.verification = previous.verification;
@@ -62,6 +102,13 @@ export class SyncService {
             scope: set.key,
           });
         }
+      }
+    }
+    if (season) {
+      for (const row of season.items) {
+        const events = normalized.sets.find((s) => s.key === `events:${row.year}`);
+        if (events)
+          row.completedCount = events.items.filter((e) => e.status === 'completed').length;
       }
     }
     for (const o of observations)

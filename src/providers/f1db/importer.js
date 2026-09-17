@@ -77,7 +77,9 @@ export function f1dbWeekend(data, year, round, mapping = {}) {
           ? { DNF: 'Retired', DNS: 'Did not start', DSQ: 'Disqualified', DNQ: 'Did not qualify' }[
               r.positionText
             ]
-          : 'Finished'),
+          : r.gapLaps > 0
+            ? `+${r.gapLaps} Laps`
+            : 'Finished'),
       Time: {
         millis: r.timeMillis,
         time: r.gap ? (String(r.gap).startsWith('+') ? r.gap : '+' + r.gap) : r.time,
@@ -88,6 +90,17 @@ export function f1dbWeekend(data, year, round, mapping = {}) {
       _sharedCar: r.sharedCar,
     }));
   normalized.Results = rows(race.raceResults || []);
+  for (const fastest of race.fastestLaps || []) {
+    const result = normalized.Results.find(
+      (r) => r.Driver.driverId === map('driver', fastest.driverId),
+    );
+    if (result)
+      result.FastestLap = {
+        rank: fastest.positionNumber,
+        lap: fastest.lap,
+        Time: { time: fastest.time },
+      };
+  }
   normalized.QualifyingResults = rows(race.qualifyingResults || []);
   normalized.SprintResults = rows(race.sprintRaceResults || []);
   if (normalized.Results.some((r) => r._sharedCar))

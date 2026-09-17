@@ -100,7 +100,7 @@ export function normalizeWeekend(bundle, provenance) {
     return d;
   };
   const events = bundle.calendar.map((r) => {
-    const id = `event:${year}:${slug(r.raceName)}`;
+    const id = bundle.eventIds?.[r.round] || `event:${year}:${slug(r.raceName)}`;
     aliases[`race:${year}:${r.round}`] = id;
     return {
       ...shape('EventSummary'),
@@ -109,7 +109,7 @@ export function normalizeWeekend(bundle, provenance) {
       round: Number(r.round),
       name: r.raceName,
       schedule: schedule(r.date, r.time),
-      status: 'unknown',
+      status: r.date > new Date().toISOString().slice(0, 10) ? 'scheduled' : 'unknown',
       circuit: entity('circuit', r.Circuit.circuitId, r.Circuit.circuitName),
       layout: null,
       features: [],
@@ -315,7 +315,20 @@ export function normalizeWeekend(bundle, provenance) {
       sessions: sessions.map((s) => ({ ...s, evidenceId: results.evidenceId })),
       podium: results.items.filter((x) => x.position >= 1 && x.position <= 3),
       winner: results.items.find((x) => x.position === 1)?.entry || null,
-      fastestLap: null,
+      fastestLap: (() => {
+        const fastest = results.items.find((r) => r.fastestLap?.rank === 1);
+        if (!fastest) return null;
+        return {
+          ...shape('Lap'),
+          id: `fastest:${raceSession.id}:${fastest.entry.id}`,
+          evidenceId: results.evidenceId,
+          sessionId: raceSession.id,
+          entryId: fastest.entry.id,
+          lapNumber: fastest.fastestLap.lapNumber,
+          durationMs: fastest.fastestLap.durationMs,
+          validity: 'unknown',
+        };
+      })(),
       metrics: [],
     },
   ]);

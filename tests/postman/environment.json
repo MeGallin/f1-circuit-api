@@ -1,0 +1,5 @@
+{
+  "name": "F1 Circuit local test server",
+  "values": [{ "key": "baseUrl", "value": "http://127.0.0.1:3001", "enabled": true }],
+  "_postman_variable_scope": "environment"
+}

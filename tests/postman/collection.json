@@ -1,0 +1,2133 @@
+{
+  "info": {
+    "name": "F1 Circuit API acceptance",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Deterministic fictional fixture acceptance. Run through npm run test:postman; never target production for this collection."
+  },
+  "item": [
+    {
+      "name": "Success | listSeasons",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | listSeasons",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getSeasonSummary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/summary"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getSeasonSummary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/summary?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getSeasonSummary",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/1949/summary"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getCalendar",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/calendar"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getCalendar",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/calendar?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getCalendar",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/1949/calendar"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getStandings",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/standings/drivers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getStandings",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/standings/drivers?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getStandings",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/1949/standings/drivers"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getProgression",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/standings/drivers/progression?entityId=driver%3Aexample-one"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getProgression",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/standings/drivers/progression?entityId=driver%3Aexample-one&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getProgression",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/1949/standings/drivers/progression?entityId=driver%3Aexample-one"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | lookupRace",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/races/2024/1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | lookupRace",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/races/2024/1?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | lookupRace",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/races/1949/999"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getEvent",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/event%3A2024%3Asynthetic-grand-prix"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getEvent",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/event%3A2024%3Asynthetic-grand-prix?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getEvent",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/unknown"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getImpact",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/event%3A2024%3Asynthetic-grand-prix/standings-impact"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getImpact",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/event%3A2024%3Asynthetic-grand-prix/standings-impact?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getImpact",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/events/unknown/standings-impact"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getClassification",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getClassification",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getClassification",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getQualifying",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Aqualifying/qualifying"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getQualifying",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Aqualifying/qualifying?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getQualifying",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/qualifying"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getLap",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/laps"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getLap",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/laps?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getLap",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/laps"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getPitStop",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/pit-stops"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getPitStop",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/pit-stops?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getPitStop",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/pit-stops"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getStint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/stints"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getStint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/stints?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getStint",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/stints"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getWeather",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/weather"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getWeather",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/weather?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getWeather",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/weather"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getRaceControl",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/race-control"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getRaceControl",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/race-control?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getRaceControl",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/race-control"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getPenalty",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/penalties"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getPenalty",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/penalties?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getPenalty",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/penalties"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getPosition",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/positions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getPosition",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/positions?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getPosition",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/positions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getInterval",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/intervals"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getInterval",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/intervals?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getInterval",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/intervals"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getOvertake",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/overtakes"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getOvertake",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/overtakes?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getOvertake",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/overtakes"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getRadio",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/radio"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getRadio",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/radio?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getRadio",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/radio"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getTelemetry",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/telemetry?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getTelemetry",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/telemetry?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getTelemetry",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/telemetry?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getLocation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/locations?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getLocation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/locations?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getLocation",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/unknown/locations?driverId=driver%3Aexample-one&from=2024-01-01T12%3A00%3A00Z&to=2024-01-01T12%3A01%3A00Z"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getdriverProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/driver%3Aexample-one"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getdriverProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/driver%3Aexample-one?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getdriverProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/unknown"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getdriverHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/driver%3Aexample-one/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getdriverHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/driver%3Aexample-one/results?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getdriverHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/drivers/unknown/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getconstructorProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/constructor%3Aexample-team"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getconstructorProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/constructor%3Aexample-team?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getconstructorProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/unknown"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getconstructorHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/constructor%3Aexample-team/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getconstructorHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/constructor%3Aexample-team/results?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getconstructorHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/constructors/unknown/results"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getcircuitProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getcircuitProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getcircuitProfile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/unknown"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getcircuitHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getcircuitHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit/events?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getcircuitHistory",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/unknown/events"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getLayouts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit/layouts"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getLayouts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/circuit%3Aexample-circuit/layouts?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getLayouts",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/circuits/unknown/layouts"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getRecords",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/records?scope=driver&metric=starts&entityId=driver%3Aexample-one"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getRecords",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/records?scope=driver&metric=starts&entityId=driver%3Aexample-one&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getComparison",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/comparisons?kind=driver&leftId=driver%3Aexample-one&rightId=driver%3Aexample-two&fromYear=2024&toYear=2024&metric=starts"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getComparison",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/comparisons?kind=driver&leftId=driver%3Aexample-one&rightId=driver%3Aexample-two&fromYear=2024&toYear=2024&metric=starts&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | search",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/search?q=Example"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | search",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/search?q=Example&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getSources",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sources/status"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getSources",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sources/status?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getEvidence",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/evidence/evidence%3A47601dfd22fb1ee6444731c169fe8c7a"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getEvidence",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/evidence/evidence%3A47601dfd22fb1ee6444731c169fe8c7a?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getEvidence",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/evidence/unknown"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | askQuestion",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/questions",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"text\":\"Who won?\",\"context\":{\"year\":2024,\"eventId\":\"event:2024:synthetic-grand-prix\",\"sessionId\":\"session:event:2024:synthetic-grand-prix:race\",\"driverId\":null,\"constructorId\":null}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | askQuestion",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/questions?unknownParameter=invalid",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"text\":\"Who won?\",\"context\":{\"year\":2024,\"eventId\":\"event:2024:synthetic-grand-prix\",\"sessionId\":\"session:event:2024:synthetic-grand-prix:race\",\"driverId\":null,\"constructorId\":null}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health | live",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health/live"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health | ready",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health/ready"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 200', function () { pm.response.to.have.status(200); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CORS | allowed preflight",
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "https://f1.livenotice.co.uk"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "GET"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/seasons"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', function () { pm.response.to.have.status(204); });",
+              "pm.test('Exact origin and no credentials', function () { pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('https://f1.livenotice.co.uk'); pm.expect(pm.response.headers.has('Access-Control-Allow-Credentials')).to.eql(false); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "CORS | denied origin",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "https://untrusted.invalid"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/seasons"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 403', function () { pm.response.to.have.status(403); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pagination | first page",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?limit=1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('First page cursor', function () { const b=pm.response.json(); pm.expect(b.data.items.length).to.eql(1); pm.expect(b.data.page.hasMore).to.eql(true); pm.environment.set('cursor',b.data.page.nextCursor); pm.environment.set('firstId',b.data.items[0].id); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pagination | next page",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?limit=1&cursor={{cursor}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Next page preserves scope', function () { const b=pm.response.json(); pm.expect(b.data.items[0].id).not.to.eql(pm.environment.get('firstId')); pm.expect(b.data.page.hasMore).to.eql(false); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filtering | driver",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?driverId=driver%3Aexample-two"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Matching driver only', function () { const rows=pm.response.json().data.items; pm.expect(rows.length).to.eql(1); pm.expect(rows[0].entry.drivers[0].id).to.eql('driver:example-two'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Snapshot | expired",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?snapshotId=expired"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 409', function () { pm.response.to.have.status(409); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | invalid limit",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/results?limit=201"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | reversed lap range",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sessions/session%3Aevent%3A2024%3Asynthetic-grand-prix%3Arace/laps?fromLap=5&toLap=1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maintenance | no public sync route",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/sync"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 404', function () { pm.response.to.have.status(404); });"]
+          }
+        }
+      ]
+    }
+  ]
+}

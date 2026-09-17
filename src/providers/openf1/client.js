@@ -88,8 +88,12 @@ export class OpenF1 {
               sequence: records.filter((x) => x.entryId === entry.id).length + 1,
               lap: number(r.lap_number),
               timestamp: r.date ? new Date(r.date).toISOString() : null,
-              laneDurationMs: r.pit_duration == null ? null : Math.round(r.pit_duration * 1000),
-              stationaryDurationMs: null,
+              laneDurationMs:
+                (r.lane_duration ?? r.pit_duration) == null
+                  ? null
+                  : Math.round((r.lane_duration ?? r.pit_duration) * 1000),
+              stationaryDurationMs:
+                r.stop_duration == null ? null : Math.round(r.stop_duration * 1000),
             });
           if (schema === 'Stint') {
             const compound = String(r.compound || 'unknown').toLowerCase();
