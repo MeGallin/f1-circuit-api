@@ -1,0 +1,37 @@
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+tmp/
+temp/
+
+# Local tooling and database artifacts
+.supabase/
+supabase/.temp/
+supabase/.branches/
+backups/
+*.dump
+*.backup
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
