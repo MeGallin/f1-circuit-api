@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import newman from 'newman';
+import { format, resolveConfig } from 'prettier';
 import { collection } from './postman-collection.js';
 import { appFixture } from '../tests/helpers.js';
 const { app } = appFixture();
@@ -7,10 +8,13 @@ const server = await new Promise((resolve) => {
   const s = app.listen(0, '127.0.0.1', () => resolve(s));
 });
 const artifact = collection();
+const formatting = await resolveConfig(
+  new URL('../.prettierrc.json', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'),
+);
 await fs.mkdir(new URL('../tests/postman/', import.meta.url), { recursive: true });
 await fs.writeFile(
   new URL('../tests/postman/collection.json', import.meta.url),
-  JSON.stringify(artifact, null, 2) + '\n',
+  await format(JSON.stringify(artifact), { ...formatting, parser: 'json' }),
 );
 const environment = {
   name: 'F1 Circuit local synthetic tests',
@@ -45,7 +49,7 @@ try {
   ];
   await fs.writeFile(
     new URL('../docs/POSTMAN-REPORT.md', import.meta.url),
-    lines.join('\n') + '\n',
+    await format(lines.join('\n') + '\n', { ...formatting, parser: 'markdown' }),
   );
   console.log(
     JSON.stringify({

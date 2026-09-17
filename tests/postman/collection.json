@@ -7,11 +7,7 @@
   "item": [
     {
       "name": "Success | listSeasons",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/seasons"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/seasons" },
       "event": [
         {
           "listen": "test",
@@ -275,11 +271,7 @@
     },
     {
       "name": "Success | lookupRace",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/races/2024/1"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/races/2024/1" },
       "event": [
         {
           "listen": "test",
@@ -315,11 +307,7 @@
     },
     {
       "name": "Missing resource | lookupRace",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/races/1949/999"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/races/1949/999" },
       "event": [
         {
           "listen": "test",
@@ -372,11 +360,7 @@
     },
     {
       "name": "Missing resource | getEvent",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/events/unknown"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/events/unknown" },
       "event": [
         {
           "listen": "test",
@@ -1284,11 +1268,7 @@
     },
     {
       "name": "Missing resource | getdriverProfile",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/drivers/unknown"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/drivers/unknown" },
       "event": [
         {
           "listen": "test",
@@ -1512,11 +1492,7 @@
     },
     {
       "name": "Missing resource | getcircuitProfile",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/circuits/unknown"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/circuits/unknown" },
       "event": [
         {
           "listen": "test",
@@ -1723,11 +1699,7 @@
     },
     {
       "name": "Success | search",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/search?q=Example"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/search?q=Example" },
       "event": [
         {
           "listen": "test",
@@ -1763,11 +1735,7 @@
     },
     {
       "name": "Success | getSources",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/sources/status"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/sources/status" },
       "event": [
         {
           "listen": "test",
@@ -1843,11 +1811,7 @@
     },
     {
       "name": "Missing resource | getEvidence",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/evidence/unknown"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/evidence/unknown" },
       "event": [
         {
           "listen": "test",
@@ -1867,11 +1831,7 @@
         "body": {
           "mode": "raw",
           "raw": "{\"text\":\"Who won?\",\"context\":{\"year\":2024,\"eventId\":\"event:2024:synthetic-grand-prix\",\"sessionId\":\"session:event:2024:synthetic-grand-prix:race\",\"driverId\":null,\"constructorId\":null}}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          "options": { "raw": { "language": "json" } }
         }
       },
       "event": [
@@ -1896,11 +1856,7 @@
         "body": {
           "mode": "raw",
           "raw": "{\"text\":\"Who won?\",\"context\":{\"year\":2024,\"eventId\":\"event:2024:synthetic-grand-prix\",\"sessionId\":\"session:event:2024:synthetic-grand-prix:race\",\"driverId\":null,\"constructorId\":null}}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          "options": { "raw": { "language": "json" } }
         }
       },
       "event": [
@@ -1918,11 +1874,7 @@
     },
     {
       "name": "Health | live",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/health/live"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/live" },
       "event": [
         {
           "listen": "test",
@@ -1935,11 +1887,7 @@
     },
     {
       "name": "Health | ready",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/health/ready"
-      },
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/ready" },
       "event": [
         {
           "listen": "test",
@@ -1955,14 +1903,8 @@
       "request": {
         "method": "OPTIONS",
         "header": [
-          {
-            "key": "Origin",
-            "value": "https://f1.livenotice.co.uk"
-          },
-          {
-            "key": "Access-Control-Request-Method",
-            "value": "GET"
-          }
+          { "key": "Origin", "value": "https://f1.livenotice.co.uk" },
+          { "key": "Access-Control-Request-Method", "value": "GET" }
         ],
         "url": "{{baseUrl}}/api/v1/seasons"
       },
@@ -1983,12 +1925,7 @@
       "name": "CORS | denied origin",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Origin",
-            "value": "https://untrusted.invalid"
-          }
-        ],
+        "header": [{ "key": "Origin", "value": "https://untrusted.invalid" }],
         "url": "{{baseUrl}}/api/v1/seasons"
       },
       "event": [
@@ -2114,11 +2051,7 @@
     },
     {
       "name": "Maintenance | no public sync route",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/sync"
-      },
+      "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/api/v1/sync" },
       "event": [
         {
           "listen": "test",

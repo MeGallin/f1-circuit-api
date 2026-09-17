@@ -3,7 +3,12 @@ export function loadConfig(env = process.env) {
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error('PORT must be a valid port.');
   if (!env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
-  const database = new URL(env.DATABASE_URL);
+  let database;
+  try {
+    database = new URL(env.DATABASE_URL);
+  } catch {
+    throw new Error('DATABASE_URL is invalid.');
+  }
   if (!['postgres:', 'postgresql:'].includes(database.protocol))
     throw new Error('A PostgreSQL DATABASE_URL is required.');
   const origins = (

@@ -117,7 +117,7 @@ export class SyncService {
         provider,
         version,
         retrievedAt: o.retrievedAt,
-        checksum: hash(o.payload),
+        checksum: o.checksum || hash(o.payload),
         url: o.url,
         payload: o.payload,
       });
