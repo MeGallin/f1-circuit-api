@@ -1,0 +1,71 @@
+import fs from 'node:fs/promises';
+import { loadConfig } from '../src/config/env.js';
+import { createPool } from '../src/config/database.js';
+import { PublicationRepository } from '../src/repositories/publication.repository.js';
+import { SyncService } from '../src/services/sync.service.js';
+import { Jolpica } from '../src/providers/jolpica/client.js';
+import { readF1db, f1dbWeekend } from '../src/providers/f1db/importer.js';
+import { OpenF1 } from '../src/providers/openf1/client.js';
+const [provider, ...args] = process.argv.slice(2);
+const config = loadConfig();
+const pool = createPool(config);
+const repository = new PublicationRepository(pool);
+const service = new SyncService(repository);
+try {
+  let publication;
+  if (provider === 'jolpica') {
+    const [year, round] = args.map(Number);
+    publication = await service.publish(await new Jolpica().weekend(year, round), 'jolpica');
+  } else if (provider === 'f1db') {
+    const [file, checksum, version, year, round, mappingFile] = args;
+    const source = await readF1db(file, checksum, version);
+    const mapping = mappingFile ? JSON.parse(await fs.readFile(mappingFile, 'utf8')) : {};
+    const bundle = f1dbWeekend(source.payload, Number(year), Number(round), mapping);
+    bundle.observations = [source];
+    publication = await service.publish(bundle, 'f1db', version);
+  } else if (provider === 'openf1') {
+    if (!config.openf1Enabled) throw new Error('OpenF1 is disabled.');
+    const [canonicalId, key] = args;
+    const snapshot = await repository.snapshot();
+    if (!snapshot) throw new Error('Import the backbone before OpenF1.');
+    let session;
+    for (const name of await repository.keys('sessions:', snapshot.id)) {
+      const d = await repository.get(name, snapshot.id);
+      session = d.items.find((x) => x.id === canonicalId);
+      if (session) break;
+    }
+    if (!session) throw new Error('Canonical session is unknown.');
+    const results = await repository.get(`results:${canonicalId}`, snapshot.id);
+    const normalized = await new OpenF1().detail(
+      Number(key),
+      session,
+      (results?.items || []).map((r) => r.entry),
+      {
+        retrievedAt: new Date().toISOString(),
+        sources: [
+          {
+            id: 'openf1',
+            name: 'OpenF1',
+            url: 'https://openf1.org',
+            attribution: 'OpenF1 contributors',
+            version: null,
+          },
+        ],
+      },
+    );
+    publication = await service.publishSets(normalized, normalized.observations, 'openf1');
+  } else throw new Error('Expected jolpica, f1db or openf1.');
+  console.log(JSON.stringify({ status: 'published', publication }));
+} catch (error) {
+  console.error(
+    JSON.stringify({
+      status: 'failed',
+      type: error.name,
+      message:
+        'Sync failed; no partial publication is activated. Check documented arguments, provider coverage and database configuration.',
+    }),
+  );
+  process.exitCode = 1;
+} finally {
+  await pool.end();
+}

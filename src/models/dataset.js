@@ -10,7 +10,9 @@ export function dataset(key, schema, items, provenance, options = {}) {
   return {
     key,
     schema,
-    items: items.map((item) => ({ ...item, evidenceId: item.evidenceId || id })),
+    items: items.map((item) =>
+      Object.hasOwn(item, 'evidenceId') ? { ...item, evidenceId: item.evidenceId || id } : item,
+    ),
     coverage: items.length ? 'partial' : 'unavailable',
     verification: 'source-only',
     warnings: [],
