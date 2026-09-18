@@ -23,7 +23,7 @@ export async function readF1db(file, expectedHash, version) {
 function referencesForRace(race) {
   const refs = { driver: new Set(), constructor: new Set() };
   const addRows = (rows = []) =>
-    rows.forEach((row) => {
+    (rows || []).forEach((row) => {
       if (row.driverId) refs.driver.add(row.driverId);
       if (row.constructorId) refs.constructor.add(row.constructorId);
     });

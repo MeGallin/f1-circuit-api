@@ -7,7 +7,10 @@ import { syntheticWeekend } from '../fixtures/synthetic-weekend.js';
 import { compareAssertions } from '../src/reconciliation/compare.js';
 import { Jolpica } from '../src/providers/jolpica/client.js';
 import { OpenF1 } from '../src/providers/openf1/client.js';
-import { reviewedSessionMapping } from '../src/providers/openf1/session-mapping.js';
+import {
+  matchesSessionDate,
+  reviewedSessionMapping,
+} from '../src/providers/openf1/session-mapping.js';
 import { f1dbWeekend, validateF1dbMapping } from '../src/providers/f1db/importer.js';
 test('normalization preserves fractional points, unknown times and source-only quality', () => {
   assert.equal(duration('1:23.456'), 83456);
@@ -129,6 +132,79 @@ test('reviewed Las Vegas UTC rollover mapping is narrow and timezone-aware', asy
       { event: { ...event, circuit: { id: 'circuit:other' } }, mapping },
     ),
     /date mismatch/,
+  );
+});
+
+test('reviewed non-race UTC rollover mappings require event, circuit and local date agreement', () => {
+  const cases = [
+    {
+      canonical: {
+        id: 'session:event:2023:las-vegas-grand-prix:FirstPractice',
+        eventId: 'event:2023:las-vegas-grand-prix',
+        schedule: { date: '2023-11-16' },
+      },
+      event: {
+        id: 'event:2023:las-vegas-grand-prix',
+        year: 2023,
+        round: 21,
+        circuit: { id: 'circuit:vegas' },
+      },
+      provider: {
+        session_key: 9182,
+        year: 2023,
+        circuit_short_name: 'Las Vegas',
+        date_start: '2023-11-17T04:30:00Z',
+      },
+    },
+    {
+      canonical: {
+        id: 'session:event:2024:las-vegas-grand-prix:qualifying',
+        eventId: 'event:2024:las-vegas-grand-prix',
+        schedule: { date: '2024-11-22' },
+      },
+      event: {
+        id: 'event:2024:las-vegas-grand-prix',
+        year: 2024,
+        round: 22,
+        circuit: { id: 'circuit:vegas' },
+      },
+      provider: {
+        session_key: 9640,
+        year: 2024,
+        circuit_short_name: 'Las Vegas',
+        date_start: '2024-11-23T06:00:00Z',
+      },
+    },
+  ];
+  for (const { canonical, event, provider } of cases) {
+    const mapping = reviewedSessionMapping(canonical.id, provider.session_key);
+    assert.ok(mapping);
+    assert.equal(matchesSessionDate(canonical, provider, event, mapping), true);
+    assert.equal(
+      matchesSessionDate(canonical, provider, { ...event, round: event.round + 1 }, mapping),
+      false,
+    );
+  }
+});
+
+test('OpenF1 reviewed manifest covers every staged 2023-2024 canonical session', async () => {
+  const manifest = JSON.parse(
+    await fs.readFile(new URL('../src/providers/openf1/session-mapping.json', import.meta.url)),
+  );
+  assert.equal(Object.keys(manifest).length, 221);
+  const providerKeys = new Set();
+  for (const [id, mapping] of Object.entries(manifest)) {
+    assert.equal(mapping.canonicalSessionId, id);
+    assert.match(id, /^session:event:(2023|2024):.+/);
+    assert.ok(Number.isInteger(mapping.openf1SessionKey));
+    assert.ok(!providerKeys.has(mapping.openf1SessionKey));
+    providerKeys.add(mapping.openf1SessionKey);
+    assert.ok(['EXACT_DATE', 'UTC_DATE_ROLLOVER'].includes(mapping.reasonCode));
+  }
+  assert.equal(
+    reviewedSessionMapping('session:event:2024:united-states-grand-prix:SprintQualifying', 9612)
+      ?.canonicalRound,
+    19,
   );
 });
 

@@ -33,6 +33,7 @@ export class OpenF1 {
       race: 'Race',
       qualifying: 'Qualifying',
       sprint: 'Sprint',
+      'sprint-qualifying': 'Sprint Qualifying',
       practice: 'Practice',
     }[canonicalSession.kind];
     if (!expected || !s.session_name.includes(expected))

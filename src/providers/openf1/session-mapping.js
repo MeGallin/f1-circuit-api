@@ -1,16 +1,4 @@
-const reviewedMappings = Object.freeze({
-  'session:event:2024:las-vegas-grand-prix:race': Object.freeze({
-    canonicalSessionId: 'session:event:2024:las-vegas-grand-prix:race',
-    canonicalEventId: 'event:2024:las-vegas-grand-prix',
-    canonicalYear: 2024,
-    canonicalRound: 22,
-    canonicalCircuitId: 'circuit:vegas',
-    openf1SessionKey: 9644,
-    openf1CircuitShortName: 'Las Vegas',
-    timeZone: 'America/Los_Angeles',
-    reasonCode: 'UTC_DATE_ROLLOVER',
-  }),
-});
+import reviewedMappings from './session-mapping.json' with { type: 'json' };
 
 function dateInTimeZone(value, timeZone) {
   const parts = Object.fromEntries(
@@ -40,8 +28,7 @@ export function reviewedSessionMapping(canonicalSessionId, openf1SessionKey) {
 
 export function matchesSessionDate(canonicalSession, openf1Session, event, mapping) {
   const upstreamDate = openf1Session.date_start?.slice(0, 10);
-  if (canonicalSession.schedule.date === upstreamDate) return true;
-  if (!mapping || !event) return false;
+  if (!mapping || !event) return canonicalSession.schedule.date === upstreamDate;
   if (
     mapping.canonicalSessionId !== canonicalSession.id ||
     mapping.canonicalEventId !== canonicalSession.eventId ||
@@ -54,6 +41,8 @@ export function matchesSessionDate(canonicalSession, openf1Session, event, mappi
     !mapping.timeZone
   )
     return false;
+  if (canonicalSession.schedule.date === upstreamDate) return true;
+  if (!mapping.timeZone) return false;
   return (
     dateInTimeZone(openf1Session.date_start, mapping.timeZone) === canonicalSession.schedule.date &&
     oneUtcDayApart(canonicalSession.schedule.date, upstreamDate)
