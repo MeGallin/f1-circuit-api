@@ -10,7 +10,10 @@ export class PublicationRepository {
   }
   async snapshot(id) {
     const result = id
-      ? await this.pool.query('SELECT id,created_at FROM publications WHERE id=$1', [id])
+      ? await this.pool.query(
+          "SELECT id,created_at FROM publications WHERE id=$1 AND id NOT IN (SELECT publication_id FROM archive_batches WHERE status='staging')",
+          [id],
+        )
       : await this.pool.query(
           'SELECT p.id,p.created_at FROM publications p JOIN current_publication c ON c.publication_id=p.id WHERE c.singleton=1',
         );

@@ -22,6 +22,14 @@ test('SQL repository publishes versioned normalized records and replaces data wi
     .readFileSync(new URL('../supabase/migrations/001_snapshot_store.sql', import.meta.url), 'utf8')
     .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, '');
   db.public.none(sql);
+  db.public.none(
+    fs
+      .readFileSync(
+        new URL('../supabase/migrations/002_archive_batches.sql', import.meta.url),
+        'utf8',
+      )
+      .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, ''),
+  );
   const { Pool } = db.adapters.createPg();
   const pool = new Pool();
   const repo = new PublicationRepository(pool);
@@ -42,6 +50,18 @@ test('SQL repository publishes versioned normalized records and replaces data wi
   assert.equal((await repo.get('test', second)).items.length, 1);
   assert.equal(await repo.resolve('test:alias', second), 'one');
   assert.equal((await repo.get('test', first)).items[0].year, 2000);
+  await pool.query('INSERT INTO publications(id,content_hash,provenance) VALUES($1,$2,$3)', [
+    'unpublished',
+    'test',
+    '{}',
+  ]);
+  await pool.query(
+    "INSERT INTO archive_batches(id,phase,base_publication,publication_id,status) VALUES('private-archive','backbone',$1,'unpublished','staging')",
+    [second],
+  );
+  assert.equal(await repo.snapshot('unpublished'), null);
+  assert.equal((await repo.snapshot(first)).id, first);
+  assert.equal((await repo.snapshot()).id, second);
   await pool.end();
 });
 test('publication failure rolls back and always releases connection', async () => {
