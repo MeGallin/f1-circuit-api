@@ -9,6 +9,7 @@ import { SyncService } from '../src/services/sync.service.js';
 import { Jolpica } from '../src/providers/jolpica/client.js';
 import { readF1db, f1dbWeekend } from '../src/providers/f1db/importer.js';
 import { OpenF1 } from '../src/providers/openf1/client.js';
+import { reviewedSessionMapping } from '../src/providers/openf1/session-mapping.js';
 import { runSync } from '../src/jobs/run-sync.js';
 const [provider, ...args] = process.argv.slice(2);
 const config = loadConfig();
@@ -54,6 +55,10 @@ try {
           if (session) break;
         }
         if (!session) throw new Error('Canonical session is unknown.');
+        const mapping = reviewedSessionMapping(canonicalId, Number(key));
+        const event = mapping
+          ? (await repository.get(`event:${session.eventId}`, snapshot.id))?.items?.[0]?.event
+          : null;
         const results = await repository.get(`results:${canonicalId}`, snapshot.id);
         const normalized = await new OpenF1().detail(
           Number(key),
@@ -71,6 +76,7 @@ try {
               },
             ],
           },
+          { event, mapping },
         );
         publication = await service.publishSets(normalized, normalized.observations, 'openf1');
       } else throw new Error('Expected jolpica, f1db or openf1.');

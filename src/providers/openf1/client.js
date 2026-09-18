@@ -2,6 +2,7 @@ import { ProviderHttp } from '../http-client.js';
 import { shape } from '../../schemas/contract.js';
 import { number } from '../../models/normalization.js';
 import { dataset } from '../../models/dataset.js';
+import { matchesSessionDate } from './session-mapping.js';
 export class OpenF1 {
   constructor(
     http = new ProviderHttp({ baseUrl: 'https://api.openf1.org/v1/', intervalMs: 8000 }),
@@ -23,10 +24,10 @@ export class OpenF1 {
       throw new Error('Session is not a supported completed historical session.');
     return r;
   }
-  async detail(key, canonicalSession, entries, provenance) {
+  async detail(key, canonicalSession, entries, provenance, { event, mapping } = {}) {
     const check = await this.session(key);
     const s = check.payload[0];
-    if (canonicalSession.schedule.date !== s.date_start.slice(0, 10))
+    if (!matchesSessionDate(canonicalSession, s, event, mapping))
       throw new Error('OpenF1 session date mismatch; reviewed mapping required.');
     const expected = {
       race: 'Race',

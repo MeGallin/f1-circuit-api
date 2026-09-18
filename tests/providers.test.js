@@ -6,6 +6,7 @@ import { syntheticWeekend } from '../fixtures/synthetic-weekend.js';
 import { compareAssertions } from '../src/reconciliation/compare.js';
 import { Jolpica } from '../src/providers/jolpica/client.js';
 import { OpenF1 } from '../src/providers/openf1/client.js';
+import { reviewedSessionMapping } from '../src/providers/openf1/session-mapping.js';
 test('normalization preserves fractional points, unknown times and source-only quality', () => {
   assert.equal(duration('1:23.456'), 83456);
   assert.equal(duration('unknown'), null);
@@ -55,6 +56,78 @@ test('OpenF1 rejects future and unsupported sessions before detail reads', async
     },
   });
   await assert.rejects(client.session(1), /historical/);
+});
+
+test('reviewed Las Vegas UTC rollover mapping is narrow and timezone-aware', async () => {
+  const canonical = {
+    id: 'session:event:2024:las-vegas-grand-prix:race',
+    eventId: 'event:2024:las-vegas-grand-prix',
+    kind: 'race',
+    schedule: { date: '2024-11-23' },
+  };
+  const event = {
+    id: 'event:2024:las-vegas-grand-prix',
+    year: 2024,
+    round: 22,
+    circuit: { id: 'circuit:vegas' },
+  };
+  const mapping = reviewedSessionMapping(canonical.id, 9644);
+  const client = new OpenF1({
+    async get(url) {
+      return {
+        url: 'https://api.openf1.org/v1/' + url,
+        retrievedAt: '2024-11-25T00:00:00Z',
+        payload: url.startsWith('sessions')
+          ? [
+              {
+                session_key: 9644,
+                year: 2024,
+                session_name: 'Race',
+                circuit_short_name: 'Las Vegas',
+                date_start: '2024-11-24T06:00:00Z',
+                date_end: '2024-11-24T08:00:00Z',
+              },
+            ]
+          : [],
+      };
+    },
+  });
+  await assert.doesNotReject(
+    client.detail(
+      9644,
+      canonical,
+      [],
+      { retrievedAt: '2024-11-25T00:00:00Z', sources: [] },
+      {
+        event,
+        mapping,
+      },
+    ),
+  );
+  await assert.rejects(
+    client.detail(
+      9644,
+      {
+        ...canonical,
+        id: 'session:event:2024:other-grand-prix:race',
+        eventId: 'event:2024:other-grand-prix',
+      },
+      [],
+      { retrievedAt: '2024-11-25T00:00:00Z', sources: [] },
+      { event, mapping },
+    ),
+    /date mismatch/,
+  );
+  await assert.rejects(
+    client.detail(
+      9644,
+      canonical,
+      [],
+      { retrievedAt: '2024-11-25T00:00:00Z', sources: [] },
+      { event: { ...event, circuit: { id: 'circuit:other' } }, mapping },
+    ),
+    /date mismatch/,
+  );
 });
 
 test('missing standing ranks remain unknown instead of inferred row numbers', () => {
