@@ -14,9 +14,15 @@ Allowed normalized schemas are Lap, PitStop, Stint, Weather, RaceControl and Pro
 
 ## Verification
 
-- `npm run check`: lint/format, 34 local tests, contract checksum/OpenAPI, Newman 110 requests / 184 assertions, all passed. Three tests belong to preserved optional bulk work, not this commit.
+- `npm run check`: lint/format, 35 local tests, contract checksum/OpenAPI, Newman 110 requests / 184 assertions, all passed. Three optional bulk tests remain preserved outside the focused commits.
 - Six dedicated retention tests: repeated sessions retain one workspace/core copy; unfinished backbone rejected; bounded raw dedup/budget; mapped 1,000-lap sample; finalized-held base remains unpublished; database storage reserve rejects writes.
 - `node --env-file=.env scripts/check-enrichment-storage.js`: native PostgreSQL temporary-table-only check, no production schema/data changes and no importer lock interference. A synthetic 20-driver × 50-lap session uses the real OpenF1 normalizer.
 - Measured normalized relation: base 1,000 rows / 278,528 physical bytes; after 1,000 laps, 2,000 rows / 1,474,560 bytes; identical second publication stays 2,000 rows / 1,474,560 bytes. Base remains exactly 1,000 rows. New normalized payload is 659,000 PostgreSQL bytes; mapped JSON is 498,211 bytes. This sample does not forecast all weather/race-control/raw volume.
 
-Migration 004 is committed but NOT applied to production in this phase. No real OpenF1 retrieval/enrichment, activation, deployment, snapshot pruning, or backbone restart occurred. The active backbone continues under its size guard and 2000-boundary guard. When it stops, verify all 2000+ rounds and reconcile the held data before marking it eligible for enrichment. Applying the additive migration and using the held workspace are separate later operational steps.
+## Completed held run (2026-09-18)
+
+Migration 004 was applied after the 2000-inclusive scope finalizer wrote `scope:2000:coverage-finalized` (526 reconciled rounds, 43,804 validated normalized rows). The workspace is based on the held scoped publication and remains held; the public pointer was never changed.
+
+The reviewed OpenF1 batch staged 26 race sessions across 2023–2024: 29,040 laps, 807 pit stops, 1,418 stints, 4,036 weather records and 2,494 race-control records. The bounded compressed raw cache contains 154 files and 1,230,894 bytes. The final measured database size was 143,592,595 bytes, below the 450 MiB write guard. Replaying the retention fixture still deduplicates unchanged datasets.
+
+Las Vegas 2024 (OpenF1 key 9644) remains unavailable because OpenF1 reports a UTC date of 2024-11-24 while the canonical session is dated 2024-11-23. The adapter refused the mismatch; no guessed mapping was published. No activation, deployment, snapshot pruning or public-pointer switch occurred.
