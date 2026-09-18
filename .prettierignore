@@ -3,3 +3,4 @@ package-lock.json
 docs/openapi.json
 docs/contract-manifest.json
 test-results
+.cache

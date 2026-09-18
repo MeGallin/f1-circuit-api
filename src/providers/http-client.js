@@ -17,18 +17,29 @@ export class ProviderHttp {
     for (let attempt = 0; attempt < 3; attempt++) {
       await this.wait(Math.max(0, this.next - Date.now()));
       this.next = Date.now() + this.intervalMs;
-      const response = await this.fetcher(url, {
-        headers: { 'User-Agent': 'F1Circuit/0.1.0', Accept: 'application/json' },
-        signal: AbortSignal.timeout(20000),
-        redirect: 'error',
-      });
+      let response;
+      try {
+        response = await this.fetcher(url, {
+          headers: { 'User-Agent': 'F1Circuit/0.1.0', Accept: 'application/json' },
+          signal: AbortSignal.timeout(20000),
+          redirect: 'error',
+        });
+      } catch (error) {
+        if (attempt === 2) throw error;
+        this.next = Date.now() + this.intervalMs * 2 ** attempt;
+        continue;
+      }
       if (response.status === 429 || response.status >= 500) {
-        const seconds = Number(response.headers.get('retry-after'));
+        const retry = response.headers.get('retry-after');
+        const seconds =
+          retry && /^\d+(\.\d+)?$/.test(retry)
+            ? Number(retry)
+            : (Date.parse(retry) - Date.now()) / 1000;
         await response.body?.cancel();
         if (attempt === 2) throw new Error('Provider temporarily unavailable.');
         this.next =
           Date.now() +
-          Math.min(60000, Math.max(this.intervalMs, Number.isFinite(seconds) ? seconds * 1000 : 0));
+          Math.max(this.intervalMs * 2 ** attempt, Number.isFinite(seconds) ? seconds * 1000 : 0);
         continue;
       }
       if (!response.ok) {
