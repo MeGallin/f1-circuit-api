@@ -20,9 +20,94 @@ export async function readF1db(file, expectedHash, version) {
     retrievedAt: new Date().toISOString(),
   };
 }
-export function f1dbWeekend(data, year, round, mapping = {}) {
+function referencesForRace(race) {
+  const refs = { driver: new Set(), constructor: new Set() };
+  const addRows = (rows = []) =>
+    rows.forEach((row) => {
+      if (row.driverId) refs.driver.add(row.driverId);
+      if (row.constructorId) refs.constructor.add(row.constructorId);
+    });
+  addRows(race.raceResults);
+  addRows(race.qualifyingResults);
+  addRows(race.sprintRaceResults);
+  addRows(race.driverStandings);
+  addRows(race.constructorStandings);
+  (race.fastestLaps || []).forEach((row) => row.driverId && refs.driver.add(row.driverId));
+  (race.pitStops || []).forEach((row) => row.driverId && refs.driver.add(row.driverId));
+  return refs;
+}
+
+/**
+ * Return every F1DB identity used by the requested weekend and its year calendar.
+ * The calendar is part of the normalized bundle, so every venue in that calendar
+ * must be reviewed even when the selected round does not use it.
+ */
+export function f1dbReferences(data, year, round) {
   const race = data.races.find((r) => r.year === year && r.round === round);
   if (!race) throw new Error('F1DB event is absent.');
+  const refs = { driver: new Set(), constructor: new Set(), circuit: new Set() };
+  for (const calendarRace of data.races.filter((r) => r.year === year)) {
+    refs.circuit.add(calendarRace.circuitId);
+  }
+  const raceRefs = referencesForRace(race);
+  refs.driver = raceRefs.driver;
+  refs.constructor = raceRefs.constructor;
+  return refs;
+}
+
+/**
+ * Validate a reviewed, flat mapping such as driver:f1db-id -> driver:canonical_id.
+ * F1DB imports are never allowed to fall back to provider-namespaced identities.
+ */
+export function validateF1dbMapping(data, year, round, mapping = {}, { canonicalIds = null } = {}) {
+  const refs = f1dbReferences(data, year, round);
+  const errors = [];
+  for (const kind of ['driver', 'constructor', 'circuit']) {
+    const seen = new Map();
+    for (const sourceId of [...refs[kind]].sort()) {
+      const key = `${kind}:${sourceId}`;
+      const target = mapping[key];
+      if (!target) {
+        errors.push(`${key} is unmapped`);
+        continue;
+      }
+      if (!new RegExp(`^${kind}:[a-z0-9_]+$`).test(target)) {
+        errors.push(`${key} maps to invalid canonical identity ${target}`);
+        continue;
+      }
+      if (seen.has(target)) errors.push(`${key} collides with ${seen.get(target)} at ${target}`);
+      else seen.set(target, key);
+      if (canonicalIds && !canonicalIds[kind]?.has(target))
+        errors.push(`${key} maps to absent canonical identity ${target}`);
+    }
+  }
+  if (errors.length)
+    throw new Error(`F1DB identity mapping is incomplete or unsafe: ${errors.join('; ')}`);
+  return {
+    year,
+    round,
+    references: Object.fromEntries(
+      Object.entries(refs).map(([kind, values]) => [kind, [...values].sort()]),
+    ),
+    mappings: Object.fromEntries(
+      Object.keys(mapping)
+        .filter(
+          (key) =>
+            key.startsWith('driver:') ||
+            key.startsWith('constructor:') ||
+            key.startsWith('circuit:'),
+        )
+        .sort()
+        .map((key) => [key, mapping[key]]),
+    ),
+  };
+}
+
+export function f1dbWeekend(data, year, round, mapping = {}, options = {}) {
+  const race = data.races.find((r) => r.year === year && r.round === round);
+  if (!race) throw new Error('F1DB event is absent.');
+  if (options.strict !== false)
+    validateF1dbMapping(data, year, round, mapping, { canonicalIds: options.canonicalIds || null });
   const find = (key, id) => {
     const record = data[key].find((x) => x.id === id);
     if (!record) throw new Error('F1DB identity reference is unresolved.');

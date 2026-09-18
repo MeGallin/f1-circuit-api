@@ -7,6 +7,7 @@ import { compareAssertions } from '../src/reconciliation/compare.js';
 import { Jolpica } from '../src/providers/jolpica/client.js';
 import { OpenF1 } from '../src/providers/openf1/client.js';
 import { reviewedSessionMapping } from '../src/providers/openf1/session-mapping.js';
+import { f1dbWeekend, validateF1dbMapping } from '../src/providers/f1db/importer.js';
 test('normalization preserves fractional points, unknown times and source-only quality', () => {
   assert.equal(duration('1:23.456'), 83456);
   assert.equal(duration('unknown'), null);
@@ -127,6 +128,54 @@ test('reviewed Las Vegas UTC rollover mapping is narrow and timezone-aware', asy
       { event: { ...event, circuit: { id: 'circuit:other' } }, mapping },
     ),
     /date mismatch/,
+  );
+});
+
+test('F1DB imports require complete, collision-free canonical identity mapping', () => {
+  const data = {
+    drivers: [{ id: 'driver-a', firstName: 'A', lastName: 'Driver', dateOfBirth: null }],
+    constructors: [{ id: 'team-a', name: 'Team A' }],
+    circuits: [
+      { id: 'venue-a', name: 'Venue A', latitude: null, longitude: null, countryId: null },
+    ],
+    races: [
+      {
+        year: 2024,
+        round: 1,
+        circuitId: 'venue-a',
+        officialName: 'Test Grand Prix',
+        date: '2024-01-01',
+        time: null,
+        raceResults: [
+          {
+            driverId: 'driver-a',
+            constructorId: 'team-a',
+            positionNumber: 1,
+            positionDisplayOrder: 1,
+            points: 25,
+            gridPositionNumber: 1,
+            laps: 50,
+            positionText: '1',
+          },
+        ],
+        driverStandings: [{ driverId: 'driver-a', positionNumber: 1, points: 25 }],
+        constructorStandings: [{ constructorId: 'team-a', positionNumber: 1, points: 25 }],
+      },
+    ],
+  };
+  assert.throws(() => validateF1dbMapping(data, 2024, 1), /driver:driver-a is unmapped/);
+  const mapping = {
+    'driver:driver-a': 'driver:canonical_a',
+    'constructor:team-a': 'constructor:canonical_a',
+    'circuit:venue-a': 'circuit:canonical_a',
+  };
+  const report = validateF1dbMapping(data, 2024, 1, mapping);
+  assert.deepEqual(report.references.driver, ['driver-a']);
+  const bundle = f1dbWeekend(data, 2024, 1, mapping);
+  assert.equal(bundle.race.Results[0].Driver.driverId, 'driver:canonical_a');
+  assert.throws(
+    () => f1dbWeekend(data, 2024, 1, { ...mapping, 'driver:driver-a': 'constructor:canonical_a' }),
+    /invalid canonical identity/,
   );
 });
 
