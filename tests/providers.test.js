@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import { duration, classification, normalizeWeekend } from '../src/models/normalization.js';
 import { validateSchema } from '../src/schemas/contract.js';
 import { syntheticWeekend } from '../fixtures/synthetic-weekend.js';
@@ -177,6 +178,21 @@ test('F1DB imports require complete, collision-free canonical identity mapping',
     () => f1dbWeekend(data, 2024, 1, { ...mapping, 'driver:driver-a': 'constructor:canonical_a' }),
     /invalid canonical identity/,
   );
+});
+
+test('reviewed F1DB 2000-2025 manifest keeps explicit namespace aliases', async () => {
+  const mapping = JSON.parse(
+    await fs.readFile(new URL('../docs/f1db-mapping-2000-2025.json', import.meta.url)),
+  );
+  assert.equal(Object.keys(mapping).length, 206);
+  for (const [source, target] of Object.entries(mapping)) {
+    const kind = source.split(':', 1)[0];
+    assert.match(source, new RegExp(`^${kind}:[a-z0-9-]+$`));
+    assert.match(target, new RegExp(`^${kind}:[a-z0-9_]+$`));
+  }
+  assert.equal(mapping['circuit:melbourne'], 'circuit:albert_park');
+  assert.equal(mapping['driver:carlos-sainz-jr'], 'driver:sainz');
+  assert.equal(mapping['constructor:racing-bulls'], 'constructor:rb');
 });
 
 test('missing standing ranks remain unknown instead of inferred row numbers', () => {

@@ -23,15 +23,26 @@ its year calendar must have an explicit mapping of the form
 constructor:canonical_id` or `circuit:f1db-id -> circuit:canonical_id`.
 Mappings must use the matching canonical namespace and cannot collide. The
 importer no longer silently emits `f1db-*` identities in its default path.
+The reviewed alias manifest is [f1db-mapping-2000-2025.json](./f1db-mapping-2000-2025.json).
+It contains 206 explicit mappings (129 drivers, 39 constructors and 38
+circuits). Against the staged canonical profile catalog, all 503 F1DB races
+from 2000 through 2025 passed the mapping gate and normalized without an
+unresolved identity. Temporal constructor aliases such as `kick-sauber` and
+`sauber` intentionally converge on the canonical Sauber identity; the gate
+still rejects a collision when both aliases appear in one imported weekend.
 The regression coverage exercises missing mappings, valid mappings and
 namespace violations.
 
 No F1DB rows have been imported into the held publication at this checkpoint.
-The remaining review is to approve the 2000+ identity mapping against the
-staged canonical profile and event catalog, including historical venue aliases
-and constructor lineage. Until that review is complete, the verified Jolpica
-backbone and the 27 reviewed OpenF1 race-session overlays remain the only
-published/staged inputs. No activation or public-pointer change is permitted.
+The mapping review is complete for 2000–2025; 2026 remains intentionally
+outside this manifest because the staged canonical catalog has not completed
+that season. The current 2026 gate reports three absent canonical identities
+(`driver:arvid-lindblad`, `constructor:audi` and `constructor:cadillac`) and
+one unmapped venue addendum (`circuit:madring`). Until a held-only import path
+is approved for this source, the
+verified Jolpica backbone and the 27 reviewed OpenF1 race-session overlays
+remain the only published/staged inputs. No activation or public-pointer
+change is permitted.
 
 OpenF1 session mapping remains deliberately narrow: the held workspace contains
 reviewed race sessions for 2023–2024, including the Las Vegas UTC rollover
