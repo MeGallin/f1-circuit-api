@@ -9,6 +9,7 @@ import { ArchiveRepository } from '../src/repositories/archive.repository.js';
 import { archiveJolpica } from '../src/jobs/archive.js';
 import { syntheticWeekend } from '../fixtures/synthetic-weekend.js';
 import { hash } from '../src/models/dataset.js';
+import { finalizeArchiveCoverage } from '../src/jobs/archive-coverage.js';
 
 test('durable page checkpoints survive restart and failed downloads are retried', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'f1-archive-'));
@@ -145,4 +146,58 @@ test('staging failure rolls back without checkpoint or public activation', async
   assert.equal(repo.done('round'), false);
   assert.equal(repo.cached.size, 0);
   assert.ok(!calls.some((s) => s.includes('current_publication')));
+});
+
+test('archive finalization restores earlier calendar features from retained dataset coverage', async () => {
+  const events = {
+    key: 'events:2024',
+    items: [
+      { id: 'event:2024:one', features: [] },
+      { id: 'event:2024:two', features: [] },
+    ],
+  };
+  const detail = {
+    key: 'event:event:2024:one',
+    items: [
+      {
+        event: { id: 'event:2024:one', features: [] },
+        sessions: [{ id: 'session:one', kind: 'race' }],
+      },
+    ],
+  };
+  const sets = new Map([
+    [events.key, events],
+    [detail.key, detail],
+  ]);
+  const repository = {
+    pool: {
+      async query() {
+        return {
+          rows: [
+            { key: 'results:session:one', coverage: 'partial' },
+            { key: 'laps:session:one', coverage: 'partial' },
+          ],
+        };
+      },
+    },
+    async snapshot() {
+      return { id: 'stage' };
+    },
+    async keys() {
+      return [events.key];
+    },
+    async get(key) {
+      return sets.get(key);
+    },
+    async publish(incoming) {
+      for (const set of incoming) sets.set(set.key, set);
+    },
+  };
+  assert.equal(await finalizeArchiveCoverage(repository), 1);
+  assert.equal(events.items[0].features.find((f) => f.key === 'results').coverage, 'partial');
+  assert.equal(events.items[0].features.find((f) => f.key === 'laps').coverage, 'partial');
+  assert.equal(events.items[0].features.find((f) => f.key === 'weather').coverage, 'unavailable');
+  assert.deepEqual(events.items[0].features, detail.items[0].event.features);
+  assert.deepEqual(events.items[1].features, []);
+  assert.equal(await finalizeArchiveCoverage(repository), 1);
 });

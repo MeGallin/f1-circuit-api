@@ -1,3 +1,5 @@
+import { finalizeArchiveCoverage } from './archive-coverage.js';
+
 // Season-wide queries avoid re-fetching the calendar and result pages for every round.
 export async function seasonBackbone(provider, year) {
   const calendar = await provider.season(year);
@@ -84,6 +86,10 @@ export async function archiveJolpica({
     }
     // Do not keep the full normalized archive resident while processing the next year.
     repository.cached?.clear();
+  }
+  if (repository.pool) {
+    const events = await finalizeArchiveCoverage(repository);
+    progress({ phase, status: 'coverage-finalized', events });
   }
   return repository.activate();
 }
