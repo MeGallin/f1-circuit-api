@@ -44,7 +44,8 @@ verified Jolpica backbone and the 27 reviewed OpenF1 race-session overlays
 remain the only published/staged inputs. No activation or public-pointer
 change is permitted.
 
-OpenF1 session mapping remains deliberately narrow: the held workspace contains
-reviewed race sessions for 2023–2024, including the Las Vegas UTC rollover
-mapping. Qualifying, sprint and practice mappings still require the same
-event, circuit, round and local-date review before they can be staged.
+OpenF1 session mapping is explicit for 221 canonical 2023–2024 sessions,
+including qualifying, sprint, sprint-qualifying and practice sessions. The
+held workspace has exercised 30 sessions so far (the 27 reviewed races plus
+three representatives). Three source/canonical date disagreements remain
+unavailable as documented in `ENRICHMENT-RETENTION.md`; they are not inferred.
