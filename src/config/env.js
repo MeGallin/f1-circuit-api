@@ -30,6 +30,7 @@ export function loadConfig(env = process.env) {
     port,
     databaseUrl: env.DATABASE_URL,
     databaseSsl: env.DATABASE_SSL !== 'false',
+    databaseSslCaFile: env.DATABASE_SSL_CA_FILE || null,
     origins,
     logLevel: env.LOG_LEVEL || 'info',
     production: env.NODE_ENV === 'production',

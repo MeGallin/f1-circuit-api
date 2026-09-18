@@ -6,6 +6,10 @@ The API is a stateless Docker web service intended for Render. PostgreSQL is ext
 
 Supply the Supabase session-pooler PostgreSQL URL through DATABASE_URL with TLS enabled. Certificate verification remains enabled. Use an approved server-side database role. The migration enables RLS and defines no anonymous/browser policies; a dedicated non-owner role needs explicit reviewed grants/policies. A connection string alone does not grant access. Do not expose Supabase/database credentials to the browser.
 
+For Supabase's certificate chain, download the server root CA from the project's Database Settings → SSL configuration → Download certificate. Store it locally in `credentials/supabase-ca.pem` (ignored by Git) and set `DATABASE_SSL_CA_FILE` to its absolute path in the local `.env`. This configures trust only for the database connection; certificate and hostname verification remain enabled. A missing configured file fails closed. Never disable certificate verification to resolve a trust error. See [Supabase SSL guidance](https://supabase.com/docs/guides/platform/ssl-enforcement).
+
+Locally run `node --env-file=.env scripts/migrate.js` and `npm run dev`. Node's startup CA settings are not reliably loaded from `--env-file`; use the explicit database CA file setting above. Production must supply the CA file and its runtime path separately; do not deploy a Windows-local path or assume the ignored file is included in the Docker image.
+
 Run `npm run migrate` as a release step with the migration-authorized role. It holds an advisory lock, tracks files and runs pending migrations in a transaction. Take an external logical backup first and test restoration separately before launch. Container files are not backups. Environment variables must be injected; `.env` is not loaded automatically.
 
 ## Source import commands
