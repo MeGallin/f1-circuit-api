@@ -20,8 +20,12 @@ try {
     async () => {
       let publication;
       if (provider === 'jolpica') {
-        const [year, round] = args.map(Number);
-        publication = await service.publish(await new Jolpica().weekend(year, round), 'jolpica');
+        if (args[0] === 'seasons')
+          publication = await service.publishSeasonCatalogue(await new Jolpica().seasons());
+        else {
+          const [year, round] = args.map(Number);
+          publication = await service.publish(await new Jolpica().weekend(year, round), 'jolpica');
+        }
       } else if (provider === 'f1db') {
         const [file, checksum, version, year, round, mappingFile] = args;
         const source = await readF1db(file, checksum, version);

@@ -7,6 +7,64 @@ export class SyncService {
   constructor(repository) {
     this.repository = repository;
   }
+  async publishSeasonCatalogue(bundle) {
+    const current = await this.repository.snapshot();
+    const previous = current ? await this.repository.get('seasons', current.id) : null;
+    const existing = new Map((previous?.items || []).map((row) => [row.year, row]));
+    const yearNow = new Date().getUTCFullYear();
+    const items = bundle.records
+      .map((record) => {
+        if (!/^\d{4}$/.test(record.season) || Number(record.season) < 1950)
+          throw new Error('Invalid provider season.');
+        const year = Number(record.season);
+        return {
+          ...(existing.get(year) || {
+            id: `season:${year}`,
+            evidenceId: null,
+            year,
+            eventCount: 0,
+            completedCount: 0,
+            coverage: 'unavailable',
+          }),
+          isCurrent: year === yearNow,
+        };
+      })
+      .sort((a, b) => b.year - a.year);
+    if (!items.length) throw new Error('Cannot publish an empty provider catalogue.');
+    const set = dataset(
+      'seasons',
+      'Season',
+      items,
+      {
+        retrievedAt: bundle.observations.at(-1)?.retrievedAt || new Date().toISOString(),
+        sources: [
+          {
+            id: 'jolpica',
+            name: 'jolpica',
+            url: 'https://api.jolpi.ca/ergast/f1/seasons/',
+            attribution: 'Jolpica F1 / Ergast contributors',
+            version: null,
+          },
+        ],
+      },
+      {
+        coverage: 'complete',
+        warnings: [
+          {
+            code: 'CATALOGUE_NOT_EVENT_COVERAGE',
+            message:
+              'This provider season index includes seasons whose event data has not been imported. Season counts describe imported calendar records, not the total races held.',
+            scope: 'seasons',
+          },
+        ],
+      },
+    );
+    return this.publishSets(
+      { sets: [set], aliases: Object.fromEntries(items.map((row) => [row.id, row.id])) },
+      bundle.observations,
+      'jolpica',
+    );
+  }
   async publish(bundle, provider, version = null) {
     const current = await this.repository.snapshot();
     if (current) {
@@ -122,6 +180,17 @@ export class SyncService {
         payload: o.payload,
       });
     const now = new Date().toISOString();
+    const priorStatus = current ? await repo.get(`source:${provider}`, current.id) : null;
+    const capabilities = new Map(
+      (priorStatus?.items[0]?.capabilities || []).map((item) => [item.key, item]),
+    );
+    for (const set of normalized.sets)
+      capabilities.set(set.key, {
+        key: set.key,
+        coverage: set.coverage,
+        reasonCode: null,
+        endpoint: null,
+      });
     normalized.sets.push(
       dataset(
         `source:${provider}`,
@@ -137,12 +206,7 @@ export class SyncService {
               : 'healthy',
             lastSuccess: now,
             lastFailure: null,
-            capabilities: normalized.sets.map((x) => ({
-              key: x.key,
-              coverage: x.coverage,
-              reasonCode: null,
-              endpoint: null,
-            })),
+            capabilities: [...capabilities.values()],
           },
         ],
         { retrievedAt: now, sources: [] },

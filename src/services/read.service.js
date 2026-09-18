@@ -76,8 +76,16 @@ export class ReadService {
     if (p.sessionId) {
       if (!(await repo.resolve(p.sessionId, snapshot.id))) throw missing();
     }
-    if (op === 'listSeasons') set = await get('seasons');
-    else if (op === 'getCalendar') set = await get(`events:${p.year}`);
+    if (op === 'listSeasons') {
+      set = await get('seasons');
+      if (set)
+        set = {
+          ...set,
+          items: set.items
+            .map((row) => ({ ...row, isCurrent: row.year === new Date().getUTCFullYear() }))
+            .sort((a, b) => b.year - a.year),
+        };
+    } else if (op === 'getCalendar') set = await get(`events:${p.year}`);
     else if (op === 'getSeasonSummary') {
       const seasons = await need('seasons'),
         events = await get(`events:${p.year}`);

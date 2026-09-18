@@ -38,6 +38,15 @@ export class Jolpica {
       throw new Error('Invalid season.');
     return this.pages(String(year), 'RaceTable', 'Races');
   }
+  async seasons() {
+    const result = await this.pages('seasons', 'SeasonTable', 'Seasons');
+    if (
+      !result.records.length ||
+      result.records.some((row) => !/^\d{4}$/.test(row.season) || Number(row.season) < 1950)
+    )
+      throw new Error('Jolpica season catalogue is invalid.');
+    return result;
+  }
   async weekend(year, round) {
     if (!Number.isInteger(round) || round < 1 || round > 100) throw new Error('Invalid round.');
     const calendar = await this.season(year);
