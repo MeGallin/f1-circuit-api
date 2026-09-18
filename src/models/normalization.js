@@ -282,14 +282,14 @@ export function normalizeWeekend(bundle, provenance) {
   }
   for (const p of profileMap.values()) add(`profile:${p.id}`, 'Profile', [p]);
   for (const [kind, rawRows] of Object.entries(bundle.standings || {})) {
-    const rows = rawRows.map((r, i) => {
+    const rows = rawRows.map((r) => {
       const ref = kind === 'drivers' ? driver(r.Driver) : constructor(r.Constructor);
       return {
         ...shape('Standing'),
         id: `standing:${year}:${round}:${ref.id}`,
         entity: ref,
         constructors: (r.Constructors || []).map(constructor),
-        rank: number(r.position) || i + 1,
+        rank: number(r.position),
         points: points(r.points),
         wins: number(r.wins),
         podiums: null,

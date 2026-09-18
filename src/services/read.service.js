@@ -69,9 +69,9 @@ export class ReadService {
     };
     let set;
     const op = operation.operationId;
-    if (p.year) {
+    if (p.year || q.year) {
       const seasons = await get('seasons');
-      if (!seasons?.items.some((s) => s.year === p.year)) throw missing();
+      if (!seasons?.items.some((s) => s.year === (p.year || q.year))) throw missing();
     }
     if (p.sessionId) {
       if (!(await repo.resolve(p.sessionId, snapshot.id))) throw missing();
@@ -205,7 +205,8 @@ export class ReadService {
         set.items = set.items.filter((r) => sessionIds.has(r.sessionId));
       }
     } else if (op === 'getLayouts') {
-      await need(`profile:${p.id}`);
+      const profile = await need(`profile:${p.id}`);
+      if (profile.items[0]?.kind !== 'circuit') throw missing();
       set = await get(`layouts:${p.id}`);
     } else if (op === 'search') {
       const profiles = await aggregate('profile:');
@@ -309,10 +310,23 @@ export class ReadService {
         warnings: [],
       };
     else if (op === 'getRecords' || op === 'getComparison') {
-      if (op === 'getRecords' && q.scope !== 'season') await need(`profile:${q.entityId}`);
+      const kind = op === 'getRecords' ? q.scope : q.kind;
+      if (kind === 'circuit' && q.metric === 'points')
+        throw invalid('Championship points cannot be attributed to a circuit.');
+      const requireEntity = async (id) => {
+        if (kind === 'season') {
+          const seasons = await get('seasons');
+          if (!seasons?.items.some((row) => row.id === id)) throw missing();
+        } else {
+          const profile = await need(`profile:${id}`);
+          if (profile.items[0]?.kind !== kind)
+            throw invalid('Entity does not match the selected kind.');
+        }
+      };
+      if (op === 'getRecords' && kind !== 'season') await requireEntity(q.entityId);
       if (op === 'getComparison') {
-        await need(`profile:${q.leftId}`);
-        await need(`profile:${q.rightId}`);
+        await requireEntity(q.leftId);
+        await requireEntity(q.rightId);
       }
       set = {
         items: [],

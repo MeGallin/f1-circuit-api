@@ -56,3 +56,13 @@ test('OpenF1 rejects future and unsupported sessions before detail reads', async
   });
   await assert.rejects(client.session(1), /historical/);
 });
+
+test('missing standing ranks remain unknown instead of inferred row numbers', () => {
+  const bundle = syntheticWeekend();
+  delete bundle.standings.drivers[0].position;
+  const result = normalizeWeekend(bundle, { retrievedAt: '2024-01-01T00:00:00Z', sources: [] });
+  assert.equal(
+    result.sets.find((s) => s.key === `standings:${bundle.race.season}:drivers`).items[0].rank,
+    null,
+  );
+});
