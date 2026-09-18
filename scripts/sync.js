@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { EnrichmentRepository } from '../src/repositories/enrichment.repository.js';
+import { BoundedRawStore } from '../src/storage/bounded-raw-store.js';
 import fs from 'node:fs/promises';
 import { loadConfig } from '../src/config/env.js';
 import { createPool } from '../src/config/database.js';
@@ -10,8 +13,8 @@ import { runSync } from '../src/jobs/run-sync.js';
 const [provider, ...args] = process.argv.slice(2);
 const config = loadConfig();
 const pool = createPool(config);
-const repository = new PublicationRepository(pool);
-const service = new SyncService(repository);
+let repository = new PublicationRepository(pool);
+let service = new SyncService(repository);
 try {
   const result = await runSync(
     pool,
@@ -35,6 +38,12 @@ try {
         publication = await service.publish(bundle, 'f1db', version);
       } else if (provider === 'openf1') {
         if (!config.openf1Enabled) throw new Error('OpenF1 is disabled.');
+        repository = new EnrichmentRepository(
+          pool,
+          new BoundedRawStore(path.resolve('.cache/openf1-raw')),
+        );
+        await repository.open({ basePublication: args[2] });
+        service = new SyncService(repository);
         const [canonicalId, key] = args;
         const snapshot = await repository.snapshot();
         if (!snapshot) throw new Error('Import the backbone before OpenF1.');
@@ -68,7 +77,12 @@ try {
       return publication;
     },
   );
-  console.log(JSON.stringify({ status: 'published', publication: result }));
+  console.log(
+    JSON.stringify({
+      status: provider === 'openf1' ? 'staged-held' : 'published',
+      publication: result,
+    }),
+  );
 } catch (error) {
   console.error(
     JSON.stringify({

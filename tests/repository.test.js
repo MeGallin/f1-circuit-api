@@ -30,6 +30,7 @@ test('SQL repository publishes versioned normalized records and replaces data wi
       )
       .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, ''),
   );
+  db.public.none('CREATE TABLE archive_activation_holds(publication_id text PRIMARY KEY)');
   const { Pool } = db.adapters.createPg();
   const pool = new Pool();
   const repo = new PublicationRepository(pool);
