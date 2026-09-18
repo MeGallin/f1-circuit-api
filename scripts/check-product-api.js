@@ -100,13 +100,18 @@ try {
       rows: response.body.data?.items?.length ?? null,
     });
   }
+  const knownYears = new Set(
+    (await repository.get('seasons', snapshot.id)).items.map((s) => s.year),
+  );
   const seasons = [];
   for (const year of [1950, 2000, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]) {
     const response = await request(app)
       .get(`/api/v1/seasons/${year}/summary`)
       .timeout({ response: 10000, deadline: 15000 });
+    const expectedStatus = knownYears.has(year) ? 200 : 404;
     const valid =
-      response.status === 200 && validateSchema('getSeasonSummaryResponse', response.body).valid;
+      response.status === expectedStatus &&
+      (expectedStatus === 404 || validateSchema('getSeasonSummaryResponse', response.body).valid);
     seasons.push({
       year,
       status: response.status,
