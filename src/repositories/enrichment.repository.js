@@ -1,7 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import { PublicationRepository } from './publication.repository.js';
 import { hash } from '../models/dataset.js';
-const allowed = new Set(['Lap', 'PitStop', 'Stint', 'Weather', 'RaceControl', 'ProviderStatus']);
+const allowedOpenF1 = new Set([
+  'Lap',
+  'PitStop',
+  'Stint',
+  'Weather',
+  'RaceControl',
+  'ProviderStatus',
+]);
+const allowedF1db = new Set([
+  'EventSummary',
+  'EventDetail',
+  'Session',
+  'Classification',
+  'Qualifying',
+  'Profile',
+  'Standing',
+  'Season',
+  'Lap',
+  'PitStop',
+  'ProviderStatus',
+]);
 export class EnrichmentRepository extends PublicationRepository {
   constructor(pool, rawStore) {
     super(pool);
@@ -114,7 +134,13 @@ export class EnrichmentRepository extends PublicationRepository {
   async activate() {
     throw new Error('Enrichment activation requires a separate reviewed manifest-aware release.');
   }
-  async publish(sets, aliases) {
+  async publish(sets, aliases, context = {}) {
+    const provider = context.provider || 'openf1';
+    const allowed = provider === 'f1db' ? allowedF1db : allowedOpenF1;
+    if (provider === 'f1db' && !context.namespace)
+      throw new Error('F1DB held overlays require an explicit namespace.');
+    if (provider === 'f1db' && sets.some((s) => !s.key.startsWith(context.namespace)))
+      throw new Error('F1DB held overlays must use their explicit namespace.');
     if (sets.some((s) => !allowed.has(s.schema)))
       throw new Error('Unsupported enrichment dataset; telemetry is not persisted.');
     if (Object.keys(aliases).length)
@@ -143,6 +169,14 @@ export class EnrichmentRepository extends PublicationRepository {
       );
       const reserve = Buffer.byteLength(JSON.stringify(sets)) * 4;
       if (size + reserve >= 450 * 1024 * 1024) throw new Error('Database storage budget reached.');
+      const existing = new Map(
+        (
+          await c.query(
+            'SELECT key,metadata FROM datasets WHERE publication_id=$1 AND key=ANY($2::text[])',
+            [id, sets.map((set) => set.key)],
+          )
+        ).rows.map((row) => [row.key, row.metadata]),
+      );
       for (const o of this.observations.values())
         await c.query(
           'INSERT INTO source_observations(id,provider,source_version,retrieved_at,checksum,source_url,payload) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING',
@@ -156,44 +190,68 @@ export class EnrichmentRepository extends PublicationRepository {
             JSON.stringify(o.payload),
           ],
         );
-      for (const set of sets) {
-        const storageHash = hash(set);
-        const existing = (
-          await c.query('SELECT metadata FROM datasets WHERE publication_id=$1 AND key=$2', [
-            id,
-            set.key,
-          ])
-        ).rows[0];
-        if (existing?.metadata?.storageHash === storageHash) continue;
-        await c.query('DELETE FROM publication_dataset_refs WHERE publication_id=$1 AND key=$2', [
-          id,
-          set.key,
-        ]);
-        await c.query('DELETE FROM normalized_records WHERE publication_id=$1 AND dataset_key=$2', [
-          id,
-          set.key,
-        ]);
-        await c.query('DELETE FROM datasets WHERE publication_id=$1 AND key=$2', [id, set.key]);
-        const { items, ...metadata } = set;
+      const changed = sets.filter((set) => existing.get(set.key)?.storageHash !== hash(set));
+      const keys = changed.map((set) => set.key);
+      if (keys.length) {
         await c.query(
-          'INSERT INTO datasets(publication_id,key,schema_name,coverage,verification,evidence_id,metadata) VALUES($1,$2,$3,$4,$5,$6,$7)',
-          [
-            id,
-            set.key,
-            set.schema,
-            set.coverage,
-            set.verification,
-            set.evidenceId,
-            JSON.stringify({ ...metadata, storageHash }),
-          ],
+          'DELETE FROM publication_dataset_refs WHERE publication_id=$1 AND key=ANY($2::text[])',
+          [id, keys],
         );
-        for (let offset = 0; offset < items.length; offset += 500) {
+        await c.query(
+          'DELETE FROM normalized_records WHERE publication_id=$1 AND dataset_key=ANY($2::text[])',
+          [id, keys],
+        );
+        await c.query('DELETE FROM datasets WHERE publication_id=$1 AND key=ANY($2::text[])', [
+          id,
+          keys,
+        ]);
+        const metadata = changed.map((set) => {
+          const rest = { ...set };
+          delete rest.items;
+          return {
+            key: rest.key,
+            schema: rest.schema,
+            coverage: rest.coverage,
+            verification: rest.verification,
+            evidence: rest.evidenceId,
+            metadata: { ...rest, storageHash: hash(set) },
+          };
+        });
+        const datasetValues = [],
+          datasetSlots = [];
+        for (const row of metadata) {
+          const n = datasetValues.length;
+          datasetSlots.push('(' + [1, 2, 3, 4, 5, 6, 7].map((v) => '$' + (n + v)).join(',') + ')');
+          datasetValues.push(
+            id,
+            row.key,
+            row.schema,
+            row.coverage,
+            row.verification,
+            row.evidence,
+            JSON.stringify(row.metadata),
+          );
+        }
+        await c.query(
+          'INSERT INTO datasets(publication_id,key,schema_name,coverage,verification,evidence_id,metadata) VALUES ' +
+            datasetSlots.join(','),
+          datasetValues,
+        );
+        const rows = changed.flatMap((set) =>
+          set.items.map((payload, ordinal) => ({
+            key: set.key,
+            id: payload.id || `${set.key}:${ordinal}`,
+            ordinal,
+            payload,
+          })),
+        );
+        for (let offset = 0; offset < rows.length; offset += 1000) {
           const values = [],
             slots = [];
-          for (const [i, payload] of items.slice(offset, offset + 500).entries()) {
+          for (const row of rows.slice(offset, offset + 1000)) {
             const n = values.length;
             slots.push('(' + [1, 2, 3, 4, 5].map((v) => '$' + (n + v)).join(',') + ')');
-            values.push(id, set.key, payload.id, offset + i, JSON.stringify(payload));
+            values.push(id, row.key, row.id, row.ordinal, JSON.stringify(row.payload));
           }
           await c.query(
             'INSERT INTO normalized_records(publication_id,dataset_key,id,ordinal,payload) VALUES ' +
@@ -201,9 +259,17 @@ export class EnrichmentRepository extends PublicationRepository {
             values,
           );
         }
+        const refValues = [],
+          refSlots = [];
+        for (const key of keys) {
+          const n = refValues.length;
+          refSlots.push('(' + [1, 2, 3].map((v) => '$' + (n + v)).join(',') + ')');
+          refValues.push(id, key, id);
+        }
         await c.query(
-          'INSERT INTO publication_dataset_refs(publication_id,key,dataset_publication_id) VALUES($1,$2,$1)',
-          [id, set.key],
+          'INSERT INTO publication_dataset_refs(publication_id,key,dataset_publication_id) VALUES ' +
+            refSlots.join(','),
+          refValues,
         );
       }
       await c.query('COMMIT');

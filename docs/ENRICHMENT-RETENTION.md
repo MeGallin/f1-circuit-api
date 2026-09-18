@@ -10,7 +10,18 @@ The workspace can share the still-held backbone after its 2000-inclusive boundar
 
 Raw responses are content-addressed gzip files in ignored `.cache/openf1-raw`, with a hard 256 MiB aggregate budget and 8 MB uncompressed per-response bound. Postgres source_observations stores only the external key, checksum and size descriptor. Budget exhaustion stops before normalized publication; already-written immutable files may remain after a failed DB transaction, within the bounded budget. Preserve these files/back them up with provenance; they are not deployed or uploaded automatically. A future external-object-store adapter can use the same write contract.
 
-Allowed normalized schemas are Lap, PitStop, Stint, Weather, RaceControl and ProviderStatus. Telemetry/location bulk persistence is rejected. Before each staged transaction, database size plus four times the incoming serialized dataset size must remain below 450 MiB. This is a conservative estimate, not a substitute for the operational guard. Changed data may produce PostgreSQL dead tuples until normal vacuuming reuses them; unchanged replay is a no-op.
+OpenF1 staging allows only Lap, PitStop, Stint, Weather, RaceControl and
+ProviderStatus. The reviewed F1DB held overlay additionally allows the core
+schemas it normalizes (EventSummary, EventDetail, Session, Classification,
+Qualifying, Profile, Standing, Season, Lap and PitStop), but only when every
+dataset key carries an explicit `f1db:<year>:<round>:` namespace and aliases
+are empty. This prevents a provider overlay from replacing canonical rows or
+silently changing identity resolution. Telemetry/location bulk persistence is
+rejected. Before each staged transaction, database size plus four times the
+incoming serialized dataset size must remain below 450 MiB. This is a
+conservative estimate, not a substitute for the operational guard. Changed
+data may produce PostgreSQL dead tuples until normal vacuuming reuses them;
+unchanged replay is a no-op.
 
 ## Verification
 
@@ -23,6 +34,6 @@ Allowed normalized schemas are Lap, PitStop, Stint, Weather, RaceControl and Pro
 
 Migration 004 was applied after the 2000-inclusive scope finalizer wrote `scope:2000:coverage-finalized` (526 reconciled rounds, 43,804 validated normalized rows). The workspace is based on the held scoped publication and remains held; the public pointer was never changed.
 
-The reviewed OpenF1 batch staged 27 race sessions across 2023–2024: 29,980 laps, 846 pit stops, 1,477 stints, 4,179 weather records and 2,531 race-control records. The bounded compressed raw cache contains 160 files and 1,271,318 bytes. The final measured database size was 145,337,491 bytes, below the 450 MiB write guard. Replaying the retention fixture still deduplicates unchanged datasets.
+The reviewed F1DB overlay now covers all 503 mapped races from 2000–2025 in 31,689 namespaced datasets and 110,450 normalized rows. The bounded OpenF1 pass materializes 62 session bundles across the five allowed dataset families: 30,289 laps, 846 pit stops, 1,500 stints, 7,070 weather records and 3,782 race-control records. The compressed raw cache contains 347 files and 1,998,188 bytes. The measured database size is 330,353,811 bytes, below the 450 MiB write guard. Replaying the retention fixture still deduplicates unchanged datasets.
 
 The reviewed UTC rollover mappings now cover the local-date-compatible Las Vegas 2023 practice sessions, plus Las Vegas 2024 qualifying/practice/race sessions (OpenF1 keys 9182, 9184, 9637, 9638, 9639, 9640 and 9644). The checked-in manifest contains 221 explicit 2023–2024 canonical session mappings: 214 exact-date mappings and 7 local-timezone rollovers. Three apparent one-day matches remain deliberately unmapped because the provider's local date does not agree with the canonical session date (Las Vegas 2023 qualifying/Practice 2 and São Paulo 2024 qualifying). Each accepted mapping requires the canonical session/event identity, round, circuit, provider circuit name and provider year; a one-day difference additionally requires the correct local timezone. Unrelated mismatches continue to fail closed. No activation, deployment, snapshot pruning or public-pointer switch occurred.

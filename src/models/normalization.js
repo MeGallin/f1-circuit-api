@@ -152,21 +152,33 @@ export function normalizeWeekend(bundle, provenance) {
       race.Qualifying?.date,
       race.Qualifying?.time,
     );
-    const rows = (race.QualifyingResults || []).map((r) => ({
-      ...shape('Qualifying'),
-      id: `qualifying:${s.id}:${r.Driver.driverId}`,
-      sessionId: s.id,
-      entry: entry(r, s.id),
-      position: number(r.position),
-      phases: ['Q1', 'Q2', 'Q3']
-        .filter((k) => r[k] != null)
-        .map((k) => ({
-          key: k,
-          label: k,
-          bestTimeMs: duration(r[k]),
-          participation: 'participated',
-        })),
-    }));
+    const rowsById = new Map();
+    for (const r of race.QualifyingResults || []) {
+      const row = {
+        ...shape('Qualifying'),
+        id: `qualifying:${s.id}:${r.Driver.driverId}`,
+        sessionId: s.id,
+        entry: entry(r, s.id),
+        position: number(r.position),
+        phases: ['Q1', 'Q2', 'Q3']
+          .filter((k) => r[k] != null)
+          .map((k) => ({
+            key: k,
+            label: k,
+            bestTimeMs: duration(r[k]),
+            participation: 'participated',
+          })),
+      };
+      const prior = rowsById.get(row.id);
+      if (!prior) rowsById.set(row.id, row);
+      else {
+        prior.position ??= row.position;
+        prior.phases = [
+          ...new Map([...prior.phases, ...row.phases].map((p) => [p.key, p])).values(),
+        ];
+      }
+    }
+    const rows = [...rowsById.values()];
     if (rows.length) s.status = 'completed';
     add(`qualifying:${s.id}`, 'Qualifying', rows);
   }

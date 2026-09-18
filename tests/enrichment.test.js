@@ -53,6 +53,42 @@ test('repeated enrichment sessions share core rows and keep one held workspace',
     await pool.end();
   }
 });
+test('held F1DB overlays require a namespace and retain rows without item ids', async () => {
+  const { pool } = await enrichmentFixture();
+  try {
+    const r = new EnrichmentRepository(pool, { write: async () => ({ storage: 'descriptor' }) });
+    await r.open();
+    await assert.rejects(
+      r.publish([{ ...set('f1db:2000:1', 1), schema: 'EventDetail' }], {}, { provider: 'f1db' }),
+      /explicit namespace/,
+    );
+    const key = 'f1db:2000:1:event:event:2000:1';
+    await r.publish(
+      [
+        {
+          key,
+          schema: 'EventDetail',
+          coverage: 'partial',
+          verification: 'source-only',
+          evidenceId: 'e:f1db',
+          provenance: {},
+          items: [{ event: null }],
+        },
+      ],
+      {},
+      { provider: 'f1db', namespace: 'f1db:2000:1:' },
+    );
+    const row = (
+      await pool.query(
+        'SELECT id FROM normalized_records WHERE publication_id=$1 AND dataset_key=$2',
+        [r.workspace.publication_id, key],
+      )
+    ).rows[0];
+    assert.equal(row.id, `${key}:0`);
+  } finally {
+    await pool.end();
+  }
+});
 test('held unfinished backbone blocks enrichment and no workspace is created', async () => {
   const { pool } = await enrichmentFixture();
   try {
