@@ -48,3 +48,15 @@ test('pagination/filtering, snapshots, validation and ETag are consistent', asyn
   await request(app).get('/api/v1/events/unknown').expect(404);
   await request(app).get('/api/v1/sessions/unknown/laps').expect(404);
 });
+test('profile history resolves named event and session context without exposing only IDs', async () => {
+  const { app } = appFixture();
+  const result = await request(app)
+    .get('/api/v1/drivers/driver%3Aexample-one/results')
+    .query({ year: 2024 })
+    .expect(200);
+  const row = result.body.data.items[0];
+  assert.equal(row.eventContext.event.name, 'Synthetic Grand Prix');
+  assert.equal(row.eventContext.event.year, 2024);
+  assert.equal(row.eventContext.session.label, 'Race');
+  assert.equal(row.eventContext.session.kind, 'race');
+});

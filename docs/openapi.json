@@ -8989,6 +8989,22 @@
           }
         ]
       },
+      "HistoryContext": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/EventSummary"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
+          }
+        },
+        "required": [
+          "event",
+          "session"
+        ],
+        "additionalProperties": false
+      },
       "Classification": {
         "type": "object",
         "properties": {
@@ -9009,6 +9025,16 @@
             "minLength": 1,
             "description": "Opaque canonical ID. Example values are synthetic.",
             "maxLength": 160
+          },
+          "eventContext": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "entry": {
             "$ref": "#/components/schemas/Entry"

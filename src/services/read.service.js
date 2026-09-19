@@ -50,8 +50,8 @@ export class ReadService {
     const repo = this.repository;
     const get = (key) => repo.get(key, snapshot.id);
     const keys = (prefix) => repo.keys(prefix, snapshot.id);
-    const aggregate = async (prefix, predicate = () => true) => {
-      const sets = await Promise.all((await keys(prefix)).map(get));
+    const aggregate = async (prefix, predicate = () => true, keyFilter = () => true) => {
+      const sets = await Promise.all((await keys(prefix)).filter(keyFilter).map(get));
       const items = sets.flatMap((s) => s.items).filter(predicate);
       return {
         items,
@@ -181,6 +181,14 @@ export class ReadService {
     } else if (op.endsWith('History')) {
       const profile = await need(`profile:${p.id}`);
       if (profile.items[0]?.kind !== op.slice(3, -7)) throw missing();
+      const historySessions = new Map();
+      const sessionKeys = (await keys('sessions:')).filter(
+        (key) => !q.year || key.includes(`event:${q.year}:`),
+      );
+      const sessionSets = await Promise.all(sessionKeys.map(get));
+      for (const sessionSet of sessionSets) {
+        for (const session of sessionSet?.items || []) historySessions.set(session.id, session);
+      }
       set =
         op === 'getcircuitHistory'
           ? await aggregate(
@@ -191,18 +199,40 @@ export class ReadService {
               op === 'getdriverHistory'
                 ? r.entry.drivers.some((d) => d.id === p.id)
                 : r.entry.constructor?.id === p.id,
-            );
+            (key) => !q.year || key.includes(`event:${q.year}:`),
+          );
       if (q.year && op !== 'getcircuitHistory') {
         const events = await get(`events:${q.year}`);
-        const eventIds = new Set(events?.items.map((e) => e.id));
-        const sessionIds = new Set();
-        for (const key of await keys('sessions:')) {
-          const sessions = await get(key);
-          sessions.items
-            .filter((s) => eventIds.has(s.eventId))
-            .forEach((s) => sessionIds.add(s.id));
-        }
+        const eventIds = new Set((events?.items || []).map((e) => e.id));
+        const sessionIds = new Set(
+          [...historySessions.values()]
+            .filter((session) => eventIds.has(session.eventId))
+            .map((session) => session.id),
+        );
         set.items = set.items.filter((r) => sessionIds.has(r.sessionId));
+      }
+      if (op !== 'getcircuitHistory') {
+        const historyEventIds = new Set(
+          set.items
+            .map((row) => historySessions.get(row.sessionId)?.eventId)
+            .filter(Boolean),
+        );
+        const historyEvents = new Map();
+        const eventSets = await Promise.all(
+          [...historyEventIds].map((eventId) => get(`event:${eventId}`)),
+        );
+        for (const eventSet of eventSets) {
+          const event = eventSet?.items?.[0]?.event;
+          if (event) historyEvents.set(event.id, event);
+        }
+        set.items = set.items.map((row) => {
+          const session = historySessions.get(row.sessionId);
+          const event = session ? historyEvents.get(session.eventId) : null;
+          return {
+            ...row,
+            eventContext: event && session ? { event, session } : null,
+          };
+        });
       }
     } else if (op === 'getLayouts') {
       const profile = await need(`profile:${p.id}`);
@@ -239,14 +269,16 @@ export class ReadService {
           context: null,
         })),
       ];
-      set = {
-        ...profiles,
-        items: items.filter(
-          (r) =>
-            (!q.kind || r.kind === q.kind) &&
-            r.entity.displayName.toLowerCase().includes(q.q.toLowerCase()),
-        ),
-      };
+        set = {
+          ...profiles,
+          items: items.filter(
+            (r) =>
+              (!q.kind || r.kind === q.kind) &&
+            (r.entity.displayName.toLowerCase().includes(q.q.toLowerCase()) ||
+              r.id.toLowerCase().includes(q.q.toLowerCase()) ||
+              r.entity.id.toLowerCase().includes(q.q.toLowerCase())),
+          ),
+        };
     } else if (op === 'getSources') set = await aggregate('source:');
     else if (op === 'getEvidence') {
       const source = await repo.evidence(p.evidenceId, snapshot.id);
