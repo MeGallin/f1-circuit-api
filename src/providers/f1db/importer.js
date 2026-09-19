@@ -314,6 +314,7 @@ export function f1dbWeekend(data, year, round, mapping = {}, options = {}) {
   const standings = {
     drivers: (race.driverStandings || []).map((r) => ({
       Driver: driver(r.driverId),
+      number: r.driverNumber ?? r.number ?? null,
       position: r.positionNumber,
       points: r.points,
     })),

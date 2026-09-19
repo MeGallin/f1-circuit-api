@@ -319,10 +319,14 @@ test('F1DB layout projection keeps canonical IDs, observed ranges and attributio
 
 test('missing standing ranks remain unknown instead of inferred row numbers', () => {
   const bundle = syntheticWeekend();
+  bundle.standings.drivers[0].Driver = {
+    ...bundle.standings.drivers[0].Driver,
+    permanentNumber: '1',
+  };
   delete bundle.standings.drivers[0].position;
   const result = normalizeWeekend(bundle, { retrievedAt: '2024-01-01T00:00:00Z', sources: [] });
-  assert.equal(
-    result.sets.find((s) => s.key === `standings:${bundle.race.season}:drivers`).items[0].rank,
-    null,
-  );
+  const standing = result.sets.find((s) => s.key === `standings:${bundle.race.season}:drivers`)
+    .items[0];
+  assert.equal(standing.rank, null);
+  assert.equal(standing.number, '1');
 });

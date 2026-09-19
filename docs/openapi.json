@@ -10048,6 +10048,18 @@
           "entity": {
             "$ref": "#/components/schemas/EntityRef"
           },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "description": "Driver race number supplied by the provider. Null when unavailable."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "constructors": {
             "type": "array",
             "items": {
@@ -10103,6 +10115,7 @@
           "id",
           "evidenceId",
           "entity",
+          "number",
           "constructors",
           "rank",
           "points",
