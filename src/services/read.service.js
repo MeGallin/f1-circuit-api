@@ -107,8 +107,8 @@ export class ReadService {
               null,
             standingSnapshotId:
               ds?.items[0]?.standingSnapshotId || cs?.items[0]?.standingSnapshotId || null,
-            leadingDrivers: ds?.items.slice(0, 5) || [],
-            leadingConstructors: cs?.items.slice(0, 5) || [],
+            leadingDrivers: ds?.items.slice(0, 10) || [],
+            leadingConstructors: cs?.items.slice(0, 10) || [],
           },
         ],
       };
