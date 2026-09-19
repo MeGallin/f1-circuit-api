@@ -18,6 +18,7 @@ const allowedF1db = new Set([
   'Profile',
   'Standing',
   'Season',
+  'Layout',
   'Lap',
   'PitStop',
   'ProviderStatus',
@@ -139,8 +140,16 @@ export class EnrichmentRepository extends PublicationRepository {
     const allowed = provider === 'f1db' ? allowedF1db : allowedOpenF1;
     if (provider === 'f1db' && !context.namespace)
       throw new Error('F1DB held overlays require an explicit namespace.');
-    if (provider === 'f1db' && sets.some((s) => !s.key.startsWith(context.namespace)))
+    if (
+      provider === 'f1db' &&
+      sets.some((s) => s.schema !== 'Layout' && !s.key.startsWith(context.namespace))
+    )
       throw new Error('F1DB held overlays must use their explicit namespace.');
+    if (
+      provider === 'f1db' &&
+      sets.some((s) => s.schema === 'Layout' && !s.key.startsWith('layouts:'))
+    )
+      throw new Error('F1DB layout projections must use canonical layouts:<circuit> keys.');
     if (sets.some((s) => !allowed.has(s.schema)))
       throw new Error('Unsupported enrichment dataset; telemetry is not persisted.');
     if (Object.keys(aliases).length)

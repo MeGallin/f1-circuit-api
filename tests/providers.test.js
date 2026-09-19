@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { duration, classification, normalizeWeekend } from '../src/models/normalization.js';
+import {
+  duration,
+  classification,
+  normalizeWeekend,
+  normalizeLayouts,
+} from '../src/models/normalization.js';
 import { validateSchema } from '../src/schemas/contract.js';
 import { syntheticWeekend } from '../fixtures/synthetic-weekend.js';
 import { compareAssertions } from '../src/reconciliation/compare.js';
@@ -11,7 +16,7 @@ import {
   matchesSessionDate,
   reviewedSessionMapping,
 } from '../src/providers/openf1/session-mapping.js';
-import { f1dbWeekend, validateF1dbMapping } from '../src/providers/f1db/importer.js';
+import { f1dbWeekend, f1dbLayouts, validateF1dbMapping } from '../src/providers/f1db/importer.js';
 test('normalization preserves fractional points, unknown times and source-only quality', () => {
   assert.equal(duration('1:23.456'), 83456);
   assert.equal(duration('unknown'), null);
@@ -269,6 +274,47 @@ test('reviewed F1DB 2000-2025 manifest keeps explicit namespace aliases', async 
   assert.equal(mapping['circuit:melbourne'], 'circuit:albert_park');
   assert.equal(mapping['driver:carlos-sainz-jr'], 'driver:sainz');
   assert.equal(mapping['constructor:racing-bulls'], 'constructor:rb');
+});
+
+test('F1DB layout projection keeps canonical IDs, observed ranges and attribution', () => {
+  const data = {
+    circuits: [
+      {
+        id: 'venue-a',
+        name: 'Venue A',
+        fullName: 'Venue A Circuit',
+        layouts: [
+          { id: 'venue-a-1', effective: false, length: 5.2 },
+          { id: 'venue-a-2', effective: true, length: 5.3 },
+        ],
+      },
+    ],
+    races: [{ year: 2024, round: 1, circuitId: 'venue-a', circuitLayoutId: 'venue-a-1' }],
+  };
+  const projection = f1dbLayouts(
+    data,
+    { 'circuit:venue-a': 'circuit:canonical_a' },
+    { version: '2026.14.0' },
+  );
+  assert.deepEqual(projection.coverage, {
+    fromYear: 2000,
+    toYear: 2025,
+    scopedCircuits: 1,
+    approvedCircuits: 1,
+    approvedLayouts: 2,
+  });
+  assert.deepEqual(projection.missing, []);
+  const [set] = normalizeLayouts(projection, { retrievedAt: '2024-01-01T00:00:00Z', sources: [] });
+  assert.equal(set.key, 'layouts:circuit:canonical_a');
+  assert.equal(set.items[0].circuitId, 'circuit:canonical_a');
+  assert.equal(set.items[0].validFrom, '2024-01-01');
+  assert.equal(set.items[0].validTo, '2024-12-31');
+  assert.equal(set.items[0].lengthMetres, 5200);
+  assert.equal(set.items[0].licence, 'CC BY 4.0');
+  for (const item of set.items) {
+    const result = validateSchema('Layout', item);
+    assert.ok(result.valid, JSON.stringify(result.errors));
+  }
 });
 
 test('missing standing ranks remain unknown instead of inferred row numbers', () => {

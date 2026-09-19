@@ -358,3 +358,15 @@ export function normalizeWeekend(bundle, provenance) {
   aliases[`season:${year}`] = `season:${year}`;
   return { sets, aliases };
 }
+
+export function normalizeLayouts(projection, provenance) {
+  return projection.sets.map(({ circuitId, rows }) =>
+    dataset(`layouts:${circuitId}`, 'Layout', rows, provenance, {
+      coverage: 'complete',
+      verification: 'verified',
+      warnings: projection.missing.length
+        ? ['Some in-scope circuits do not have an approved F1DB layout.']
+        : [],
+    }),
+  );
+}

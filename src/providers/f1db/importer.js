@@ -56,6 +56,109 @@ export function f1dbReferences(data, year, round) {
 }
 
 /**
+ * Project the reviewed F1DB circuit layouts into the canonical Layout shape.
+ *
+ * F1DB stores a layout's effective flag and the layout used by each race, but
+ * does not publish validity dates.  The dates below are therefore bounded by
+ * the first and last in-scope race that explicitly references the layout.  An
+ * effective layout with no in-scope race reference is retained with an open
+ * range; it is still useful for the current circuit profile, but never gets a
+ * made-up historical date.
+ */
+export function f1dbLayouts(
+  data,
+  mapping = {},
+  {
+    version = '2026.14.0',
+    fromYear = 2000,
+    toYear = 2025,
+    canonicalIds = null,
+    strict = false,
+  } = {},
+) {
+  const scopedRaces = data.races.filter((race) => race.year >= fromYear && race.year <= toYear);
+  const circuits = new Map(data.circuits.map((circuit) => [circuit.id, circuit]));
+  const sourceCircuitIds = [...new Set(scopedRaces.map((race) => race.circuitId))].sort();
+  const missing = [];
+  const sets = [];
+  const assetBase = `https://raw.githubusercontent.com/f1db/f1db/v${version}/src/assets/circuits/white-outline`;
+  const provenance = {
+    source: 'F1DB',
+    sourceVersion: version,
+    releaseUrl: `https://github.com/f1db/f1db/releases/tag/v${version}`,
+    assetStyle: 'white-outline',
+  };
+
+  for (const sourceId of sourceCircuitIds) {
+    const circuit = circuits.get(sourceId);
+    const canonicalId = mapping[`circuit:${sourceId}`];
+    if (!circuit) {
+      missing.push({ sourceId, reason: 'source-circuit-missing' });
+      continue;
+    }
+    if (!canonicalId) {
+      missing.push({ sourceId, reason: 'canonical-mapping-missing' });
+      continue;
+    }
+    if (canonicalIds && !canonicalIds.circuit?.has(canonicalId)) {
+      missing.push({ sourceId, canonicalId, reason: 'canonical-circuit-absent' });
+      continue;
+    }
+    const sourceLayouts = Array.isArray(circuit.layouts) ? circuit.layouts : [];
+    const rows = [];
+    for (const layout of sourceLayouts) {
+      const years = scopedRaces
+        .filter((race) => race.circuitId === sourceId && race.circuitLayoutId === layout.id)
+        .map((race) => Number(race.year))
+        .filter(Number.isInteger)
+        .sort((a, b) => a - b);
+      if (!years.length && !layout.effective) continue;
+      const range = years.length
+        ? { validFrom: `${years[0]}-01-01`, validTo: `${years.at(-1)}-12-31` }
+        : { validFrom: null, validTo: null };
+      const rangeKey = years.length ? `${years[0]}-${years.at(-1)}` : 'current';
+      rows.push({
+        id: `layout:${canonicalId}:${layout.id}:${rangeKey}`,
+        evidenceId: null,
+        circuitId: canonicalId,
+        name: `${circuit.fullName || circuit.name} — ${layout.id}`,
+        validFrom: range.validFrom,
+        validTo: range.validTo,
+        lengthMetres:
+          Number.isFinite(Number(layout.length)) && Number(layout.length) >= 0
+            ? Number(layout.length) * 1000
+            : null,
+        assetUrl: `${assetBase}/${layout.id}.svg`,
+        licence: 'CC BY 4.0',
+        attribution: 'F1DB contributors — CC BY 4.0',
+      });
+    }
+    if (!rows.length) {
+      missing.push({ sourceId, canonicalId, reason: 'approved-layout-missing' });
+      continue;
+    }
+    rows.sort((a, b) => String(b.validFrom || '').localeCompare(String(a.validFrom || '')));
+    sets.push({ circuitId: canonicalId, sourceId, rows });
+  }
+  if (strict && missing.length)
+    throw new Error(
+      `F1DB circuit layout coverage is incomplete: ${missing.map((row) => `${row.sourceId}:${row.reason}`).join(', ')}`,
+    );
+  return {
+    sets,
+    missing,
+    coverage: {
+      fromYear,
+      toYear,
+      scopedCircuits: sourceCircuitIds.length,
+      approvedCircuits: sets.length,
+      approvedLayouts: sets.reduce((sum, set) => sum + set.rows.length, 0),
+    },
+    provenance,
+  };
+}
+
+/**
  * Validate a reviewed, flat mapping such as driver:f1db-id -> driver:canonical_id.
  * F1DB imports are never allowed to fall back to provider-namespaced identities.
  */
