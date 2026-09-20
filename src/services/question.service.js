@@ -233,7 +233,7 @@ export class QuestionService {
     if (intent?.intent === 'driver_last_win')
       return this.driverLastWin(intent, context, { get, keys });
     if (intent?.intent === 'driver_race_wins')
-      return this.driverRaceWins(intent, context, { get, keys });
+      return this.driverRaceWins(intent, context, { get, keys }, originalText);
     return this.result(
       {
         status: 'unsupported',
@@ -544,7 +544,7 @@ export class QuestionService {
     );
   }
 
-  async driverRaceWins(intent, _context, { get, keys }) {
+  async driverRaceWins(intent, _context, { get, keys }, originalText = '') {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = this.findProfile(items, 'driver', intent.driverName);
     if (!driver)
@@ -573,22 +573,58 @@ export class QuestionService {
     }
 
     const count = winsByEvent.size;
+    const wantsFirst = /\bfirst\b/.test(normalize(originalText || intent.originalText));
+    let firstWin = null;
+    let details = [];
+    if (wantsFirst && winsByEvent.size) {
+      details = await Promise.all(
+        [...winsByEvent.keys()].map((eventId) => get(`event:${eventId}`)),
+      );
+      firstWin = details
+        .map((set) => ({
+          detail: set,
+          event: set?.items?.[0]?.event,
+        }))
+        .filter((entry) => entry.event)
+        .sort((a, b) => {
+          const aDate = Date.parse(
+            a.event.schedule?.startsAt || a.event.schedule?.date || '',
+          );
+          const bDate = Date.parse(
+            b.event.schedule?.startsAt || b.event.schedule?.date || '',
+          );
+          return aDate - bDate || (a.event.round || 0) - (b.event.round || 0);
+        })[0] || null;
+    }
+    const countAnswer = `${driver.entity.displayName} has won ${count} race${count === 1 ? '' : 's'} in their career.`;
+    const answer = firstWin
+      ? `${countAnswer} Their first win was the ${firstWin.event.name} on ${formatDate(firstWin.event.schedule?.date) || firstWin.event.year}.`
+      : countAnswer;
     return this.result(
       {
         status: 'answered',
         resolvedIntent: 'driver_race_wins',
         templateKey: 'driver_race_wins',
         values: {
-          answer: `${driver.entity.displayName} has won ${count} race${count === 1 ? '' : 's'} in their career.` ,
+          answer,
           driver: driver.entity.displayName,
           count,
+          ...(firstWin
+            ? {
+                firstWinEvent: firstWin.event.name,
+                firstWinDate: firstWin.event.schedule?.date || null,
+                firstWinYear: firstWin.event.year,
+                firstWinRound: firstWin.event.round,
+              }
+            : {}),
         },
         evidenceIds: unique([
           ...sets.map((set) => set?.evidenceId),
           ...Array.from(winsByEvent.values(), (set) => set?.evidenceId),
+          ...details.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
-      [...sets, ...resultSets],
+      [...sets, ...resultSets, ...details],
     );
   }
 

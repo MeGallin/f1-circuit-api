@@ -137,4 +137,15 @@ test('natural-language questions return database-backed answers without a model'
   assert.equal(raceWins.body.data.questionResult.status, 'answered');
   assert.equal(raceWins.body.data.questionResult.values.count, 1);
   assert.match(raceWins.body.data.questionResult.values.answer, /has won 1 race/);
+
+  const raceWinsWithFirst = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many races has Example One won in his career and which was his first?' })
+    .expect(200);
+  assert.equal(raceWinsWithFirst.body.data.questionResult.values.count, 1);
+  assert.equal(
+    raceWinsWithFirst.body.data.questionResult.values.firstWinEvent,
+    'Synthetic Grand Prix',
+  );
+  assert.match(raceWinsWithFirst.body.data.questionResult.values.answer, /first win was/);
 });
