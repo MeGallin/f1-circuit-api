@@ -178,6 +178,18 @@ test('circuit winner questions return the last published races without clarifica
   assert.match(response.result.values.answer, /2024/);
   assert.match(response.result.values.answer, /2023/);
   assert.match(response.result.values.answer, /2022/);
+
+  const circuitProfileSet = [...repository.sets.values()].find((set) =>
+    (set.items || []).some((item) => item.id === 'circuit:example-circuit'),
+  );
+  circuitProfileSet.items[0].country = 'Italy';
+  const countryResponse = await service.answer(
+    { text: 'Who won the last two races in Italy?' },
+    { get: repository.get.bind(repository), keys: repository.keys.bind(repository) },
+  );
+  assert.equal(countryResponse.result.status, 'answered');
+  assert.equal(countryResponse.result.resolvedIntent, 'country_race_winners');
+  assert.equal(countryResponse.result.values.country, 'Italy');
 });
 
 test('natural-language questions return database-backed answers without a model', async () => {

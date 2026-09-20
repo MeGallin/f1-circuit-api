@@ -5,7 +5,7 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 ## Resolution order
 
 1. Deterministic templates handle safe, recognisable query shapes without an AI provider. This includes archive searches, event winners, circuit race-winner history, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, driver history, driver/constructor counts, separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ, plus published session metrics for weather, tyre strategy, race control and overtakes.
-2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter produces a strict JSON query plan. The plan can describe an event, circuit, season or career scope, a metric, relative year ranges and a comparison.
+2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter produces a strict JSON query plan. The plan can describe an event, circuit, country, season or career scope, a metric, relative year ranges and a comparison.
 3. The backend validates the plan, resolves every named entity to a canonical database record, and executes it against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
 4. Unsupported, ambiguous, unavailable and partial states are returned explicitly so the client can explain what happened without inventing an answer.
 
@@ -37,6 +37,6 @@ Race, sprint, qualifying and sprint qualifying are different sessions. Race wins
 
 Session metrics are read from normalized, published detail sets. Weather answers summarize recorded observations; tyre answers use stint compounds and lap boundaries; race-control answers classify published messages; and overtake answers count linked passing entrants. OpenF1 describes its overtake feed as potentially incomplete, so the response is explicitly limited to published rows and returns unavailable when entrant mapping or coverage is insufficient. Raw car telemetry is not persisted as a general-purpose sample stream; speed questions remain unavailable until a bounded, validated summary is published.
 
-Relative periods such as “this year” and “last year” are resolved into explicit year ranges by the query plan. A circuit comparison resolves the circuit once, finds its canonical events in each requested range, and aggregates only the corresponding published session datasets. It must never inherit the Explore page’s selected season unless the question explicitly supplies a year or relative period.
+Relative periods such as “this year” and “last year” are resolved into explicit year ranges by the query plan. A circuit comparison resolves the circuit once, finds its canonical events in each requested range, and aggregates only the corresponding published session datasets. A country history query resolves all matching circuit profiles before selecting race results. Neither scope may inherit the Explore page’s selected season unless the question explicitly supplies a year or relative period.
 
 The complete acceptance matrix, including examples for compound questions, current seasons, partial coverage, ties, missing fields, source conflicts and unsupported datasets, is maintained in `docs/QUESTION-COVERAGE.md`.

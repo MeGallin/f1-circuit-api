@@ -48,6 +48,7 @@ This document is the acceptance matrix for `POST /api/v1/questions`. It is delib
 16. **Scope:** distinguish an event question from a circuit, season or career question. “Silverstone” is a circuit scope; it must not be forced into one Grand Prix.
 17. **Relative periods:** convert “this year” and “last year” to explicit years before querying. Do not use the selected UI season as an implicit answer scope.
 18. **Circuit history:** “last N races at [circuit]” resolves the circuit, selects the most recent published race result sets, and returns the winners in descending date order. It must not ask the user to choose a Grand Prix.
+19. **Country history:** “last N races in [country]” resolves all published circuits whose canonical profile country matches, then selects the most recent published race result sets across those circuits.
 
 ## Implementation gates
 

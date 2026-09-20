@@ -168,6 +168,9 @@ export class QuestionService {
       const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers);
       if (circuitQuestion)
         return this.executeIntent(circuitQuestion, context, helpers, text);
+      const countryQuestion = await this.detectCountryWinnerQuestion(text, helpers);
+      if (countryQuestion)
+        return this.executeIntent(countryQuestion, context, helpers, text);
       return this.executeIntent(
         {
           intent: 'event_winner',
@@ -487,6 +490,8 @@ export class QuestionService {
         : this.eventSessionMetric(intent, context, originalText, { get, keys });
     if (intent?.intent === 'circuit_race_winners')
       return this.circuitRaceWinners(intent, { get, keys });
+    if (intent?.intent === 'country_race_winners')
+      return this.countryRaceWinners(intent, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -524,6 +529,33 @@ export class QuestionService {
     };
   }
 
+  async detectCountryWinnerQuestion(text, helpers) {
+    const match = String(text).match(/\b(?:in|within)\s+(?:the\s+)?(.+?)(?:\?|$)/i);
+    if (!match) return null;
+    const { items } = await this.profiles(helpers);
+    const country = match[1].trim();
+    const circuits = items.filter(
+      (profile) =>
+        profile.kind === 'circuit' &&
+        normalize(profile.country) &&
+        (normalize(profile.country) === normalize(country) ||
+          normalize(profile.country).includes(normalize(country))),
+    );
+    if (!circuits.length) return null;
+    const countMatch = String(text).match(
+      /\b(?:last|previous|most\s+recent)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:races?|grand\s+prix(?:es)?)\b/i,
+    );
+    const rawLimit = countMatch?.[1]?.toLowerCase();
+    const limit = rawLimit ? Number(rawLimit) || numberWords[rawLimit] : 1;
+    return {
+      intent: 'country_race_winners',
+      countryName: circuits[0].country,
+      scope: 'country',
+      limit: Math.min(Math.max(limit || 1, 1), 10),
+      clarificationNeeded: false,
+    };
+  }
+
   async circuitRaceWinners(intent, { get, keys }) {
     const { sets: profileSets, items: profiles } = await this.profiles({ get, keys });
     const circuit = this.findProfile(profiles, 'circuit', intent.circuitName);
@@ -532,12 +564,55 @@ export class QuestionService {
         { status: 'clarification', message: 'Which circuit do you mean?', choices: [] },
         profileSets,
       );
+    return this.raceWinnersForCircuits({
+      intent,
+      profileSets,
+      circuits: [circuit],
+      label: circuit.entity.displayName,
+      preposition: 'at',
+      get,
+      keys,
+    });
+  }
+
+  async countryRaceWinners(intent, { get, keys }) {
+    const { sets: profileSets, items: profiles } = await this.profiles({ get, keys });
+    const target = normalize(intent.countryName);
+    const circuits = profiles.filter(
+      (profile) =>
+        profile.kind === 'circuit' &&
+        target &&
+        (normalize(profile.country) === target || normalize(profile.country).includes(target)),
+    );
+    if (!circuits.length)
+      return this.result(
+        { status: 'clarification', message: 'Which country do you mean?', choices: [] },
+        profileSets,
+      );
+    return this.raceWinnersForCircuits({
+      intent,
+      profileSets,
+      circuits,
+      label: intent.countryName,
+      preposition: 'in',
+      get,
+      keys,
+    });
+  }
+
+  async raceWinnersForCircuits({ intent, profileSets, circuits, label, preposition, get, keys }) {
+    const countryScope = intent.scope === 'country' || intent.intent === 'country_race_winners';
+    const circuitIds = new Set(circuits.map((circuit) => circuit.id));
     const circuitSets = profileSets.filter((set) =>
-      (set.items || []).some((profile) => profile.id === circuit.id),
+      (set.items || []).some((profile) => circuitIds.has(profile.id)),
     );
     const eventSets = await Promise.all((await keys('events:')).map(get));
     const circuitTargets = unique(
-      [circuit.entity.displayName, circuit.entity.id, ...(circuit.aliases || [])].map(normalize),
+      circuits.flatMap((circuit) => [
+        circuit.entity.displayName,
+        circuit.entity.id,
+        ...(circuit.aliases || []),
+      ]).map(normalize),
     );
     const events = eventSets
       .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
@@ -577,7 +652,7 @@ export class QuestionService {
       return this.result(
         {
           status: 'unavailable',
-          message: `Published race winners are not available for ${circuit.entity.displayName}.`,
+          message: `Published race winners are not available ${preposition} ${label}.`,
           reasonCode: 'WINNERS_NOT_PUBLISHED',
         },
         evidenceSets,
@@ -587,15 +662,16 @@ export class QuestionService {
       const constructor = row.entry?.constructor?.displayName;
       return `${event.year} ${event.name} — ${driver.displayName}${constructor ? ` (${constructor})` : ''}`;
     });
-    const answer = `The last ${selected.length} published race${selected.length === 1 ? '' : 's'} at ${circuit.entity.displayName}: ${lines.join('; ')}.`;
+    const answer = `The last ${selected.length} published race${selected.length === 1 ? '' : 's'} ${preposition} ${label}: ${lines.join('; ')}.`;
     return this.result(
       {
         status: 'answered',
-        resolvedIntent: 'circuit_race_winners',
-        templateKey: 'circuit_race_winners',
+        resolvedIntent: countryScope ? 'country_race_winners' : 'circuit_race_winners',
+        templateKey: countryScope ? 'country_race_winners' : 'circuit_race_winners',
         values: {
           answer,
-          circuit: circuit.entity.displayName,
+          circuit: countryScope ? null : circuits[0].entity.displayName,
+          country: countryScope ? label : null,
           count: selected.length,
           winners: lines.join('; '),
         },
