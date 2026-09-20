@@ -235,6 +235,14 @@ test('natural-language questions return database-backed answers without a model'
     .expect(200);
   assert.equal(explicitYear.body.data.questionResult.values.year, 2024);
 
+  const championship = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Was Example One ever a world champion?' })
+    .expect(200);
+  assert.equal(championship.body.data.questionResult.status, 'answered');
+  assert.equal(championship.body.data.questionResult.values.count, 1);
+  assert.equal(championship.body.data.questionResult.values.championshipYears, '2024');
+
   const count = await request(app)
     .post('/api/v1/questions')
     .send({ text: 'How many times did Example One drive for Example Team in 2024?' })

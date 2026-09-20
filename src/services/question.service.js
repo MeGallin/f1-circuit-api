@@ -420,6 +420,25 @@ export class QuestionService {
           text,
         );
     }
+    if (/\b(world\s+)?champion(ship)?\b|\bdrivers?'?\s+title\b|\bworld\s+title\b/.test(lower)) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      if (driver)
+        return this.executeIntent(
+          {
+            intent: 'driver_stat',
+            driverName: driver.entity.displayName,
+            metric: 'championships',
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+    }
     if (/\bhow\s+many\b/.test(lower) && /\b(win|won|victor(?:y|ies))\b/.test(lower)) {
       const { items } = await this.profiles(helpers);
       const drivers = items
@@ -1639,6 +1658,63 @@ export class QuestionService {
       intent.fromYear !== null && intent.fromYear !== undefined
         ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
         : yearRange(originalText, context);
+    if (intent.metric === 'championships') {
+      const standingsKeys = (await keys('standings:')).filter((key) =>
+        /^standings:\d{4}:drivers$/.test(key),
+      );
+      const standingsSets = await Promise.all(standingsKeys.map(get));
+      const inRangeYear = (year) =>
+        (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+      const driverStandingSets = standingsSets.filter((set) =>
+        (set?.items || []).some((row) => row.entity?.id === driver.id),
+      );
+      const championships = standingsSets.flatMap((set) => {
+        const match = String(set?.key || '').match(/^standings:(\d{4}):drivers$/);
+        const year = match ? Number(match[1]) : null;
+        if (!year || !inRangeYear(year)) return [];
+        return (set?.items || [])
+          .filter((row) => row.entity?.id === driver.id && row.rank === 1)
+          .map((row) => ({ row, set, year }));
+      });
+      if (!standingsSets.length)
+        return this.result(
+          {
+            status: 'unavailable',
+            message: `The archive does not publish championship standings for ${driver.entity.displayName}.`,
+            reasonCode: 'CHAMPIONSHIPS_NOT_PUBLISHED',
+          },
+          sets,
+        );
+      const years = championships.map(({ year }) => year).sort((a, b) => a - b);
+      const scope = range.fromYear
+        ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+        : '';
+      const answer = years.length
+        ? `Yes. ${driver.entity.displayName} was Formula One World Champion in ${years.join(', ')}.`
+        : `No. ${driver.entity.displayName} was not Formula One World Champion in the published archive${scope}.`;
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'driver_stat',
+          templateKey: 'driver_championships',
+          values: {
+            answer,
+            driver: driver.entity.displayName,
+            metric: intent.metric,
+            count: years.length,
+            championshipYears: years.join(', ') || 'None published',
+            fromYear: range.fromYear,
+            toYear: range.toYear,
+          },
+          evidenceIds: unique([
+            ...sets.map((set) => set?.evidenceId),
+            ...driverStandingSets.map((set) => set?.evidenceId),
+            ...championships.map(({ set }) => set?.evidenceId),
+          ]).slice(0, 12),
+        },
+        [...sets, ...driverStandingSets, ...championships.map(({ set }) => set)],
+      );
+    }
     const inRange = (row) => {
       const year = yearFromEventId(sessionEventId(row.sessionId));
       return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);

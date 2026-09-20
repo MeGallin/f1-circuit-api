@@ -46,6 +46,7 @@ This document is the acceptance matrix for `POST /api/v1/questions`. It is delib
 14. **Compound questions:** answer every requested clause or state exactly which clause is unavailable. Never answer only the first recognizable phrase.
 15. **Comparisons:** calculate both sides with the same scope, metric and coverage boundary; do not compare a current snapshot with a career total.
 16. **Scope:** distinguish an event question from a circuit, season or career question. “Silverstone” is a circuit scope; it must not be forced into one Grand Prix.
+17. **Championship status:** “Was [driver] ever a world champion?” reads only final published driver standings and answers from rows ranked first; race wins are not used as a proxy for a title.
 17. **Relative periods:** convert “this year” and “last year” to explicit years before querying. Do not use the selected UI season as an implicit answer scope.
 18. **Circuit history:** “last N races at [circuit]” resolves the circuit, selects the most recent published race result sets, and returns the winners in descending date order. It must not ask the user to choose a Grand Prix.
 19. **Country history:** “last N races in [country]” resolves all published circuits whose canonical profile country matches, then selects the most recent published race result sets across those circuits.
