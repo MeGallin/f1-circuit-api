@@ -7532,7 +7532,8 @@
             "schema": {
               "type": "string",
               "minLength": 2,
-              "maxLength": 100
+              "maxLength": 100,
+              "description": "Case-insensitive search term. Separate multiple terms with spaces or commas; records matching any term are returned."
             },
             "description": ""
           },

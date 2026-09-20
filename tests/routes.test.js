@@ -60,3 +60,22 @@ test('profile history resolves named event and session context without exposing 
   assert.equal(row.eventContext.session.label, 'Race');
   assert.equal(row.eventContext.session.kind, 'race');
 });
+test('search matches comma-separated terms while preserving record type filters', async () => {
+  const { app } = appFixture();
+  const all = await request(app)
+    .get('/api/v1/search')
+    .query({ q: 'Example,+Synthetic' })
+    .expect(200);
+  const allNames = all.body.data.items.map((item) => item.entity.displayName);
+  assert.ok(allNames.includes('Example One'));
+  assert.ok(allNames.includes('Synthetic Grand Prix'));
+
+  const events = await request(app)
+    .get('/api/v1/search')
+    .query({ q: 'Example,+Synthetic', kind: 'event' })
+    .expect(200);
+  assert.deepEqual(
+    events.body.data.items.map((item) => item.entity.displayName),
+    ['Synthetic Grand Prix'],
+  );
+});

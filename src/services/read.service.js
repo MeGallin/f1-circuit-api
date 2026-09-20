@@ -286,16 +286,20 @@ export class ReadService {
           context: null,
         })),
       ];
-        set = {
-          ...profiles,
-          items: items.filter(
-            (r) =>
-              (!q.kind || r.kind === q.kind) &&
-            (r.entity.displayName.toLowerCase().includes(q.q.toLowerCase()) ||
-              r.id.toLowerCase().includes(q.q.toLowerCase()) ||
-              r.entity.id.toLowerCase().includes(q.q.toLowerCase())),
-          ),
-        };
+      const terms = q.q
+        .trim()
+        .toLowerCase()
+        .split(/[\s,+]+/)
+        .filter(Boolean);
+      const matchesSearch = (value) => terms.some((term) => value.toLowerCase().includes(term));
+      set = {
+        ...profiles,
+        items: items.filter(
+          (r) =>
+            (!q.kind || r.kind === q.kind) &&
+            [r.entity.displayName, r.id, r.entity.id].some((value) => matchesSearch(value)),
+        ),
+      };
     } else if (op === 'getSources') set = await aggregate('source:');
     else if (op === 'getEvidence') {
       const source = await repo.evidence(p.evidenceId, snapshot.id);
