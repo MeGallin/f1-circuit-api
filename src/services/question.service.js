@@ -343,7 +343,16 @@ export class QuestionService {
             toYear: intent.toYear ?? intent.fromYear,
           }
         : yearRange(intent.originalText || '', context);
-    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const resultKeys = (await keys('results:')).filter((key) => {
+      const yearMatch = String(key).match(/:event:(\d{4}):/);
+      if (!yearMatch) return true;
+      const year = Number(yearMatch[1]);
+      return (
+        (!range.fromYear || year >= range.fromYear) &&
+        (!range.toYear || year <= range.toYear)
+      );
+    });
+    const resultSets = await Promise.all(resultKeys.map(get));
     const matchingEvents = new Map();
     for (const set of resultSets) {
       for (const row of set?.items || []) {
@@ -384,7 +393,10 @@ export class QuestionService {
           toYear: range.toYear,
           count,
         },
-        evidenceIds: unique([...sets, ...resultSets].map((set) => set?.evidenceId)),
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          ...Array.from(matchingEvents.values(), (event) => event.evidenceId),
+        ]).slice(0, 12),
       },
       [...sets, ...resultSets],
     );
