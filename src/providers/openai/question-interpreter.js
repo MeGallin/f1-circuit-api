@@ -13,6 +13,7 @@ export const questionIntentSchema = {
         'event_winner',
         'driver_constructor_race_starts',
         'driver_last_win',
+        'driver_race_wins',
         'unsupported',
       ],
     },
@@ -46,7 +47,7 @@ export const questionIntentSchema = {
 const systemPrompt = [
   'You interpret questions for a read-only Formula One archive.',
   'Return only the supplied JSON schema. Never provide facts, SQL, IDs, URLs or prose answers.',
-  'Use only these intents: archive_search, event_winner, driver_constructor_race_starts, driver_last_win, unsupported.',
+  'Use only these intents: archive_search, event_winner, driver_constructor_race_starts, driver_last_win, driver_race_wins, unsupported.',
   'The application will resolve names and query its own database after your response.',
   'Use null when a field is not present. Set clarificationNeeded true when the request is ambiguous.',
   'Do not infer a driver, constructor, event or year that is not stated by the user.',

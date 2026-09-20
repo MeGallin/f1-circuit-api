@@ -129,4 +129,12 @@ test('natural-language questions return database-backed answers without a model'
   assert.equal(lastWin.body.data.questionResult.status, 'answered');
   assert.equal(lastWin.body.data.questionResult.values.event, 'Synthetic Grand Prix');
   assert.equal(lastWin.body.data.questionResult.values.date, '2024-01-01');
+
+  const raceWins = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many races has Example One won in his career?' })
+    .expect(200);
+  assert.equal(raceWins.body.data.questionResult.status, 'answered');
+  assert.equal(raceWins.body.data.questionResult.values.count, 1);
+  assert.match(raceWins.body.data.questionResult.values.answer, /has won 1 race/);
 });

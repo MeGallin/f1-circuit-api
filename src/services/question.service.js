@@ -188,6 +188,24 @@ export class QuestionService {
           text,
         );
     }
+    if (/\bhow\s+many\b/.test(lower) && /\b(win|won|victor(?:y|ies))\b/.test(lower)) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      if (driver)
+        return this.executeIntent(
+          {
+            intent: 'driver_race_wins',
+            driverName: driver.entity.displayName,
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+    }
     if (/^((search|find|show|look up)\b|[a-z0-9]+([ ,+]+[a-z0-9]+){0,3}$)/i.test(text))
       return this.executeIntent({ intent: 'archive_search', searchTerms: text }, context, helpers);
     return null;
@@ -214,6 +232,8 @@ export class QuestionService {
       return this.driverConstructorStarts(intent, context, { get, keys });
     if (intent?.intent === 'driver_last_win')
       return this.driverLastWin(intent, context, { get, keys });
+    if (intent?.intent === 'driver_race_wins')
+      return this.driverRaceWins(intent, context, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -521,6 +541,54 @@ export class QuestionService {
         ]).slice(0, 12),
       },
       [...sets, ...resultSets, ...details],
+    );
+  }
+
+  async driverRaceWins(intent, _context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which driver do you mean?',
+          choices: [],
+        },
+        sets,
+      );
+
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const winsByEvent = new Map();
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !row.sessionId?.endsWith(':race') ||
+          row.position !== 1 ||
+          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driver.id)
+        )
+          continue;
+        const eventId = sessionEventId(row.sessionId);
+        if (eventId && !winsByEvent.has(eventId)) winsByEvent.set(eventId, set);
+      }
+    }
+
+    const count = winsByEvent.size;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_race_wins',
+        templateKey: 'driver_race_wins',
+        values: {
+          answer: `${driver.entity.displayName} has won ${count} race${count === 1 ? '' : 's'} in their career.` ,
+          driver: driver.entity.displayName,
+          count,
+        },
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          ...Array.from(winsByEvent.values(), (set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets],
     );
   }
 
