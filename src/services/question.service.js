@@ -258,8 +258,10 @@ export class QuestionService {
       const detail = await get(`event:${context.eventId}`);
       return detail ? { eventId: context.eventId, set: detail } : null;
     }
+    const explicitRange = yearRange(text, context);
+    const eventYear = explicitRange.fromYear ?? context.year;
     const eventSets = await Promise.all(
-      (await keys(context.year ? `events:${context.year}` : 'events:')).map(get),
+      (await keys(eventYear ? `events:${eventYear}` : 'events:')).map(get),
     );
     const target = normalize(eventName || text);
     const candidates = eventSets

@@ -99,6 +99,21 @@ test('natural-language questions return database-backed answers without a model'
   assert.match(winner.body.data.questionResult.values.answer, /Example One won/);
   assert.ok(winner.body.data.questionResult.evidenceIds.length);
 
+  const explicitYear = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'Who won the Synthetic Grand Prix in 2024?',
+      context: {
+        year: 2026,
+        eventId: null,
+        sessionId: null,
+        driverId: null,
+        constructorId: null,
+      },
+    })
+    .expect(200);
+  assert.equal(explicitYear.body.data.questionResult.values.year, 2024);
+
   const count = await request(app)
     .post('/api/v1/questions')
     .send({ text: 'How many times did Example One drive for Example Team in 2024?' })
