@@ -16,6 +16,21 @@ const keyMap = {
   getTelemetry: 'telemetry',
   getLocation: 'locations',
 };
+
+// Older publications predate the nullable driver-number field. Normalize that
+// legacy shape at the read boundary so historical seasons still satisfy the
+// current response contract without rewriting the stored publication.
+const normalizeStandingSet = (set) =>
+  set
+    ? {
+        ...set,
+        items: set.items.map((row) => ({
+          ...row,
+          number: row.number == null || row.number === '' ? null : String(row.number),
+        })),
+      }
+    : set;
+
 export class ReadService {
   constructor(repository) {
     this.repository = repository;
@@ -90,8 +105,8 @@ export class ReadService {
       const seasons = await need('seasons'),
         events = await get(`events:${p.year}`);
       const all = events?.items || [];
-      const ds = await get(`standings:${p.year}:drivers`),
-        cs = await get(`standings:${p.year}:constructors`);
+      const ds = normalizeStandingSet(await get(`standings:${p.year}:drivers`)),
+        cs = normalizeStandingSet(await get(`standings:${p.year}:constructors`));
       set = {
         ...events,
         items: [
@@ -154,7 +169,9 @@ export class ReadService {
           throw invalid('Standing snapshot does not belong to this season.');
         round = Number(match[2]);
       }
-      set = await get(`standings:${p.year}:${p.kind}${round ? ':' + round : ''}`);
+      set = normalizeStandingSet(
+        await get(`standings:${p.year}:${p.kind}${round ? ':' + round : ''}`),
+      );
     } else if (op === 'getProgression') {
       set = await aggregate(`standings:${p.year}:${p.kind}:`, (r) => r.entity.id === q.entityId);
       set.items = set.items

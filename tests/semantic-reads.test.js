@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import request from 'supertest';
 import { appFixture, MemoryRepository } from './helpers.js';
@@ -54,4 +55,23 @@ test('known season comparisons return unavailable metrics instead of looking up 
       if (response.body.meta.coverage !== 'unavailable')
         throw new Error('Unavailable metrics must remain explicit.');
     });
+});
+
+test('historical standings without driver numbers remain readable', async () => {
+  const repository = new MemoryRepository();
+  for (const key of ['standings:2024:drivers', 'standings:2024:constructors'])
+    repository.sets.get(key).items.forEach((row) => delete row.number);
+
+  const { app } = appFixture(repository);
+  await request(app)
+    .get('/api/v1/seasons/2024/summary')
+    .expect(200)
+    .expect((response) => {
+      assert.equal(response.body.data.seasonSummary.leadingDrivers[0].number, null);
+      assert.equal(response.body.data.seasonSummary.leadingConstructors[0].number, null);
+    });
+  await request(app)
+    .get('/api/v1/seasons/2024/standings/drivers')
+    .expect(200)
+    .expect((response) => assert.equal(response.body.data.items[0].number, null));
 });
