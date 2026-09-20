@@ -172,16 +172,30 @@ export class QuestionService {
       const countryQuestion = await this.detectCountryWinnerQuestion(text, helpers, context);
       if (countryQuestion)
         return this.executeIntent(countryQuestion, context, helpers, text);
-      return this.executeIntent(
-        {
-          intent: 'event_winner',
-          eventName: null,
-          clarificationNeeded: false,
-        },
-        context,
-        helpers,
-        text,
-      );
+      if (context.eventId)
+        return this.executeIntent(
+          {
+            intent: 'event_winner',
+            eventName: null,
+            clarificationNeeded: false,
+          },
+          context,
+          helpers,
+          text,
+        );
+      const resolvedEvent = await this.resolveEvent(null, context, text, helpers);
+      if (resolvedEvent)
+        return this.executeIntent(
+          {
+            intent: 'event_winner',
+            eventName: null,
+            clarificationNeeded: false,
+          },
+          context,
+          helpers,
+          text,
+        );
+      return null;
     }
     if (/\bhow\s+many\b/.test(lower) && /\bfor\b/.test(lower)) {
       const { items } = await this.profiles(helpers);

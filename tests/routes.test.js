@@ -445,3 +445,37 @@ test('natural-language questions return database-backed answers without a model'
   assert.equal(overtakes.body.data.questionResult.values.count, 2);
   assert.match(overtakes.body.data.questionResult.values.answer, /Example One/);
 });
+
+test('unresolved winner wording reaches the structured interpreter instead of false clarification', async () => {
+  const { repository } = appFixture();
+  const service = new QuestionService(repository);
+  service.interpreter = {
+    interpret: async () => ({
+      intent: 'event_winner',
+      searchTerms: '',
+      driverName: null,
+      comparisonDriverName: null,
+      constructorName: null,
+      eventName: 'Synthetic Grand Prix',
+      circuitName: null,
+      countryName: null,
+      scope: 'event',
+      sessionKind: 'race',
+      fromYear: 2024,
+      toYear: 2024,
+      comparisonFromYear: null,
+      comparisonToYear: null,
+      limit: null,
+      metric: 'results',
+      clarificationNeeded: false,
+      clarificationMessage: null,
+    }),
+  };
+  const response = await service.answer(
+    { text: 'Who took victory at the Synthetic Grand Prix in 2024?' },
+    { get: repository.get.bind(repository), keys: repository.keys.bind(repository) },
+  );
+  assert.equal(response.result.status, 'answered');
+  assert.equal(response.result.resolvedIntent, 'event_winner');
+  assert.match(response.result.values.answer, /Synthetic Grand Prix/);
+});
