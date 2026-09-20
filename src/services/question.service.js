@@ -46,7 +46,8 @@ function yearRange(text, context) {
   const years = [...String(text).matchAll(/\b(19\d{2}|20\d{2})\b/g)].map((m) => Number(m[1]));
   if (years.length >= 2) return { fromYear: Math.min(...years), toYear: Math.max(...years) };
   if (years.length === 1) return { fromYear: years[0], toYear: years[0] };
-  const anchor = Number(context.year) || new Date().getUTCFullYear();
+  const anchor =
+    Number(context.year) || Number(context.currentYear) || new Date().getUTCFullYear();
   if (/\bthis\s+(?:year|season)\b/i.test(text)) return { fromYear: anchor, toYear: anchor };
   if (/\blast\s+year\b/i.test(text)) return { fromYear: anchor - 1, toYear: anchor - 1 };
   if (/last\s+(?:four|4)\s+years?/i.test(text)) return { fromYear: anchor - 3, toYear: anchor };
@@ -165,10 +166,10 @@ export class QuestionService {
     if (!text) return null;
     const lower = normalize(text);
     if (/\bwho\s+won\b|\bwinner\b/.test(lower)) {
-      const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers);
+      const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers, context);
       if (circuitQuestion)
         return this.executeIntent(circuitQuestion, context, helpers, text);
-      const countryQuestion = await this.detectCountryWinnerQuestion(text, helpers);
+      const countryQuestion = await this.detectCountryWinnerQuestion(text, helpers, context);
       if (countryQuestion)
         return this.executeIntent(countryQuestion, context, helpers, text);
       return this.executeIntent(
@@ -507,13 +508,11 @@ export class QuestionService {
     return { sets, items: sets.flatMap((set) => set?.items || []) };
   }
 
-  async detectCircuitWinnerQuestion(text, helpers) {
-    const match = String(text).match(
-      /\b(?:at|around|near|on)\s+(?:the\s+)?(.+?)(?:\?|$)/i,
-    );
-    if (!match) return null;
+  async detectCircuitWinnerQuestion(text, helpers, context) {
+    const location = this.locationPhrase(text, ['at', 'around', 'near', 'on']);
+    if (!location) return null;
     const { items } = await this.profiles(helpers);
-    const circuit = this.findProfile(items, 'circuit', match[1].trim());
+    const circuit = this.findProfile(items, 'circuit', location);
     if (!circuit) return null;
     const countMatch = String(text).match(
       /\b(?:last|previous|most\s+recent)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:races?|grand\s+prix(?:es)?)\b/i,
@@ -525,15 +524,16 @@ export class QuestionService {
       circuitName: circuit.entity.displayName,
       scope: 'circuit',
       limit: Math.min(Math.max(limit || 1, 1), 10),
+      ...yearRange(text, context),
       clarificationNeeded: false,
     };
   }
 
-  async detectCountryWinnerQuestion(text, helpers) {
-    const match = String(text).match(/\b(?:in|within)\s+(?:the\s+)?(.+?)(?:\?|$)/i);
-    if (!match) return null;
+  async detectCountryWinnerQuestion(text, helpers, context) {
+    const location = this.locationPhrase(text, ['in', 'within']);
+    if (!location) return null;
     const { items } = await this.profiles(helpers);
-    const country = match[1].trim();
+    const country = location.trim();
     const circuits = items.filter(
       (profile) =>
         profile.kind === 'circuit' &&
@@ -552,8 +552,20 @@ export class QuestionService {
       countryName: circuits[0].country,
       scope: 'country',
       limit: Math.min(Math.max(limit || 1, 1), 10),
+      ...yearRange(text, context),
       clarificationNeeded: false,
     };
+  }
+
+  locationPhrase(text, prepositions) {
+    const alternatives = prepositions.join('|');
+    const match = String(text).match(
+      new RegExp(
+        `\\b(?:${alternatives})\\s+(?:the\\s+)?(.+?)(?=\\s+(?:this|last)\\s+(?:year|season)\\b|\\s+in\\s+(?:19\\d{2}|20\\d{2})\\b|\\s+(?:19\\d{2}|20\\d{2})\\b|[?!.]|$)`,
+        'i',
+      ),
+    );
+    return match?.[1]?.trim() || null;
   }
 
   async circuitRaceWinners(intent, { get, keys }) {
@@ -614,13 +626,24 @@ export class QuestionService {
         ...(circuit.aliases || []),
       ]).map(normalize),
     );
+    const range =
+      Number.isInteger(intent.fromYear) || Number.isInteger(intent.toYear)
+        ? {
+            fromYear: Number(intent.fromYear ?? intent.toYear),
+            toYear: Number(intent.toYear ?? intent.fromYear),
+          }
+        : { fromYear: null, toYear: null };
     const events = eventSets
       .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
       .filter(({ event }) => {
         const value = normalize(`${event.circuit?.displayName || ''} ${event.circuit?.id || ''}`);
-        return circuitTargets.some(
+        const matchesCircuit = circuitTargets.some(
           (target) => value === target || value.includes(target) || target.includes(value),
         );
+        const matchesYear =
+          (!range.fromYear || Number(event.year) >= range.fromYear) &&
+          (!range.toYear || Number(event.year) <= range.toYear);
+        return matchesCircuit && matchesYear;
       });
     const records = await Promise.all(
       events.map(async ({ event, set }) => ({

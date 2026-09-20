@@ -190,6 +190,15 @@ test('circuit winner questions return the last published races without clarifica
   assert.equal(countryResponse.result.status, 'answered');
   assert.equal(countryResponse.result.resolvedIntent, 'country_race_winners');
   assert.equal(countryResponse.result.values.country, 'Italy');
+
+  const relativeCountry = await service.interpretDeterministically(
+    'Who won in Italy last year?',
+    { year: 2024, currentYear: 2024 },
+    { get: repository.get.bind(repository), keys: repository.keys.bind(repository) },
+  );
+  assert.equal(relativeCountry.result.status, 'answered');
+  assert.equal(relativeCountry.result.values.count, 1);
+  assert.match(relativeCountry.result.values.answer, /2023/);
 });
 
 test('natural-language questions return database-backed answers without a model', async () => {
