@@ -218,12 +218,14 @@ export class ReadService {
               'events:',
               (r) => r.circuit?.id === p.id && (!q.year || r.year === q.year),
             )
-          : await aggregate('results:', (r) =>
-              op === 'getdriverHistory'
-                ? r.entry.drivers.some((d) => d.id === p.id)
-                : r.entry.constructor?.id === p.id,
-            (key) => !q.year || key.includes(`event:${q.year}:`),
-          );
+          : await aggregate(
+              'results:',
+              (r) =>
+                op === 'getdriverHistory'
+                  ? r.entry.drivers.some((d) => d.id === p.id)
+                  : r.entry.constructor?.id === p.id,
+              (key) => !q.year || key.includes(`event:${q.year}:`),
+            );
       if (q.year && op !== 'getcircuitHistory') {
         const events = await get(`events:${q.year}`);
         const eventIds = new Set((events?.items || []).map((e) => e.id));
@@ -236,9 +238,7 @@ export class ReadService {
       }
       if (op !== 'getcircuitHistory') {
         const historyEventIds = new Set(
-          set.items
-            .map((row) => historySessions.get(row.sessionId)?.eventId)
-            .filter(Boolean),
+          set.items.map((row) => historySessions.get(row.sessionId)?.eventId).filter(Boolean),
         );
         const historyEvents = new Map();
         const eventSets = await Promise.all(
