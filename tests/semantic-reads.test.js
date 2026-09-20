@@ -35,6 +35,48 @@ test('record scopes and comparison kinds reject incompatible identities', async 
     .expect(404);
 });
 
+test('Records capabilities are the source of truth and Rosberg podium URLs stay explicit', async () => {
+  const repository = new MemoryRepository();
+  const source = repository.sets.get('profile:driver:example-one');
+  repository.sets.set('profile:driver:rosberg', {
+    ...source,
+    key: 'profile:driver:rosberg',
+    items: source.items.map((item) => ({
+      ...item,
+      id: 'driver:rosberg',
+      entity: { ...item.entity, id: 'driver:rosberg', displayName: 'Nico Rosberg' },
+    })),
+  });
+  const { app } = appFixture(repository);
+
+  const capabilities = await request(app).get('/api/v1/records/capabilities').expect(200);
+  assert.deepEqual(
+    capabilities.body.data.items.map((item) => item.scope),
+    ['driver', 'constructor', 'circuit', 'season'],
+  );
+  assert.ok(capabilities.body.data.items.every((item) => item.metrics.length === 0));
+  assert.equal(capabilities.body.meta.coverage, 'not-applicable');
+
+  const podiums = await request(app)
+    .get('/api/v1/records')
+    .query({ scope: 'driver', metric: 'podiums', entityId: 'driver:rosberg' })
+    .expect(200);
+  assert.deepEqual(podiums.body.data.items, []);
+  assert.equal(podiums.body.meta.warnings[0].code, 'HISTORICAL_METRIC_NOT_QUALIFIED');
+  assert.match(podiums.body.meta.warnings[0].message, /Podiums metric/);
+
+  const starts = await request(app)
+    .get('/api/v1/records')
+    .query({ scope: 'driver', metric: 'starts', entityId: 'driver:rosberg' })
+    .expect(200);
+  assert.equal(starts.body.meta.warnings[0].code, 'HISTORICAL_METRIC_NOT_QUALIFIED');
+
+  await request(app)
+    .get('/api/v1/records')
+    .query({ scope: 'driver', metric: 'not-a-record-metric', entityId: 'driver:rosberg' })
+    .expect(400);
+});
+
 test('known season comparisons return unavailable metrics instead of looking up driver profiles', async () => {
   const repository = new MemoryRepository();
   const seasons = repository.sets.get('seasons');

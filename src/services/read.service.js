@@ -1,5 +1,10 @@
 import { ApiError, invalid, missing } from '../errors/api-error.js';
 import { meta, hash } from '../models/dataset.js';
+import {
+  recordCapabilities,
+  recordMetricCapability,
+  recordMetricLabel,
+} from '../models/record-capabilities.js';
 const keyMap = {
   getClassification: 'results',
   getQualifying: 'qualifying',
@@ -368,6 +373,13 @@ export class ReadService {
         const question = await this.questionService.answer(body, { snapshot, get, keys });
         set = { ...question.dataset, items: [question.result] };
       }
+    } else if (op === 'getRecordCapabilities') {
+      set = {
+        items: recordCapabilities(),
+        coverage: 'not-applicable',
+        verification: 'unassessed',
+        warnings: [],
+      };
     } else if (op === 'getRecords' || op === 'getComparison') {
       const kind = op === 'getRecords' ? q.scope : q.kind;
       if (kind === 'circuit' && q.metric === 'points')
@@ -394,7 +406,9 @@ export class ReadService {
         warnings: [
           {
             code: 'HISTORICAL_METRIC_NOT_QUALIFIED',
-            message: 'This metric requires audited historical credit and scoring rules.',
+            message: recordMetricCapability(kind, q.metric)
+              ? 'This metric is not available in the current Records reader.'
+              : `The ${recordMetricLabel(q.metric)} metric is not qualified for ${kind} records. Historical scoring and credit rules are required before publication.`,
             scope: op,
           },
         ],
@@ -445,7 +459,8 @@ export class ReadService {
     const response = operation.responses['200'].content['application/json'].schema.$ref
       .split('/')
       .at(-1);
-    const collection = operation.parameters.some((p) => p.name === 'cursor');
+    const collection =
+      operation.parameters.some((p) => p.name === 'cursor') || op === 'getRecordCapabilities';
     let data;
     if (collection) {
       const filters = { ...q };

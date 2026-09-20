@@ -6999,6 +6999,131 @@
         "x-reject-unknown-query-parameters": true
       }
     },
+    "/records/capabilities": {
+      "get": {
+        "operationId": "getRecordCapabilities",
+        "summary": "get Records capabilities",
+        "description": "Returns the API-owned published Records metric options for each scope. An empty metrics array is an explicit publication boundary, not a zero result. Unknown query parameters are rejected.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 50,
+              "maximum": 200
+            },
+            "description": ""
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": ""
+            },
+            "description": ""
+          },
+          {
+            "name": "snapshotId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Opaque canonical ID. Example values are synthetic.",
+              "maxLength": 160
+            },
+            "description": ""
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published Records capabilities by scope.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": ""
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getRecordCapabilitiesResponse"
+                },
+                "example": {
+                  "data": {
+                    "items": [
+                      {
+                        "scope": "driver",
+                        "label": "Driver",
+                        "metrics": [],
+                        "reasonCode": "HISTORICAL_METRIC_NOT_QUALIFIED",
+                        "message": "No published Records metrics are available for Driver yet."
+                      }
+                    ],
+                    "page": {
+                      "nextCursor": null,
+                      "hasMore": false,
+                      "total": 1
+                    }
+                  },
+                  "meta": {
+                    "schemaVersion": "1.0.0-draft.1",
+                    "snapshotId": "synthetic-example",
+                    "generatedAt": "2024-01-01T00:00:00Z",
+                    "lastSuccessfulRetrieval": null,
+                    "freshness": "unknown",
+                    "coverage": "not-applicable",
+                    "verification": "unassessed",
+                    "sources": [],
+                    "warnings": [],
+                    "evidenceUrl": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Snapshot expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true
+      }
+    },
     "/records": {
       "get": {
         "operationId": "getRecords",
@@ -10408,6 +10533,81 @@
         ],
         "additionalProperties": false
       },
+      "RecordMetricCapability": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Metric query key."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Fan-facing metric label."
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "additionalProperties": false
+      },
+      "RecordCapability": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "driver",
+              "constructor",
+              "circuit",
+              "season"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Fan-facing scope label."
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordMetricCapability"
+            }
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "scope",
+          "label",
+          "metrics",
+          "reasonCode",
+          "message"
+        ],
+        "additionalProperties": false
+      },
       "Progression": {
         "type": "object",
         "properties": {
@@ -13059,6 +13259,38 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/Metric"
+                }
+              },
+              "page": {
+                "$ref": "#/components/schemas/Page"
+              }
+            },
+            "required": [
+              "items",
+              "page"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "getRecordCapabilitiesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecordCapability"
                 }
               },
               "page": {
