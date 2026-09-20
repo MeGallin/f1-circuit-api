@@ -33,6 +33,7 @@ export const questionIntentSchema = {
         'event_fastest_lap',
         'event_pit_stops',
         'event_session_metric',
+        'circuit_race_winners',
         'unsupported',
       ],
     },
@@ -48,6 +49,7 @@ export const questionIntentSchema = {
     toYear: nullableInteger,
     comparisonFromYear: nullableInteger,
     comparisonToYear: nullableInteger,
+    limit: nullableInteger,
     metric: {
       anyOf: [
         {
@@ -101,6 +103,7 @@ export const questionIntentSchema = {
     'toYear',
     'comparisonFromYear',
     'comparisonToYear',
+    'limit',
     'metric',
     'clarificationNeeded',
     'clarificationMessage',
@@ -117,6 +120,7 @@ const systemPrompt = [
   'Do not infer a driver, constructor, event or year that is not stated by the user.',
   'For a question about a venue or circuit across one or more years, use scope=circuit and circuitName. Use the supplied currentYear to resolve “this year” and “last year”.',
   'For comparisons, populate fromYear/toYear for the first period and comparisonFromYear/comparisonToYear for the second period. Do not answer the question yourself.',
+  'For “who won the last N races at [circuit]” or similar circuit-history questions, use intent=circuit_race_winners, scope=circuit, circuitName and limit=N.',
 ].join(' ');
 
 export class OpenAIQuestionInterpreter {

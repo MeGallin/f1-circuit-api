@@ -25,6 +25,19 @@ function humanList(items) {
   return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
 }
 
+const numberWords = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
 function contextWith(overrides = {}) {
   return { ...emptyContext, ...overrides };
 }
@@ -152,6 +165,9 @@ export class QuestionService {
     if (!text) return null;
     const lower = normalize(text);
     if (/\bwho\s+won\b|\bwinner\b/.test(lower)) {
+      const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers);
+      if (circuitQuestion)
+        return this.executeIntent(circuitQuestion, context, helpers, text);
       return this.executeIntent(
         {
           intent: 'event_winner',
@@ -469,6 +485,8 @@ export class QuestionService {
       return intent.scope === 'circuit' || intent.circuitName
         ? this.circuitSessionMetric(intent, context, originalText, { get, keys })
         : this.eventSessionMetric(intent, context, originalText, { get, keys });
+    if (intent?.intent === 'circuit_race_winners')
+      return this.circuitRaceWinners(intent, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -482,6 +500,106 @@ export class QuestionService {
   async profiles({ get, keys }) {
     const sets = await Promise.all((await keys('profile:')).map(get));
     return { sets, items: sets.flatMap((set) => set?.items || []) };
+  }
+
+  async detectCircuitWinnerQuestion(text, helpers) {
+    const match = String(text).match(
+      /\b(?:at|around|near|on)\s+(?:the\s+)?(.+?)(?:\?|$)/i,
+    );
+    if (!match) return null;
+    const { items } = await this.profiles(helpers);
+    const circuit = this.findProfile(items, 'circuit', match[1].trim());
+    if (!circuit) return null;
+    const countMatch = String(text).match(
+      /\b(?:last|previous|most\s+recent)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:races?|grand\s+prix(?:es)?)\b/i,
+    );
+    const rawLimit = countMatch?.[1]?.toLowerCase();
+    const limit = rawLimit ? Number(rawLimit) || numberWords[rawLimit] : 1;
+    return {
+      intent: 'circuit_race_winners',
+      circuitName: circuit.entity.displayName,
+      scope: 'circuit',
+      limit: Math.min(Math.max(limit || 1, 1), 10),
+      clarificationNeeded: false,
+    };
+  }
+
+  async circuitRaceWinners(intent, { get, keys }) {
+    const { sets: profileSets, items: profiles } = await this.profiles({ get, keys });
+    const circuit = this.findProfile(profiles, 'circuit', intent.circuitName);
+    if (!circuit)
+      return this.result(
+        { status: 'clarification', message: 'Which circuit do you mean?', choices: [] },
+        profileSets,
+      );
+    const eventSets = await Promise.all((await keys('events:')).map(get));
+    const circuitTargets = unique(
+      [circuit.entity.displayName, circuit.entity.id, ...(circuit.aliases || [])].map(normalize),
+    );
+    const events = eventSets
+      .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
+      .filter(({ event }) => {
+        const value = normalize(`${event.circuit?.displayName || ''} ${event.circuit?.id || ''}`);
+        return circuitTargets.some(
+          (target) => value === target || value.includes(target) || target.includes(value),
+        );
+      });
+    const records = await Promise.all(
+      events.map(async ({ event, set }) => ({
+        event,
+        set,
+        resultSet: await get(`results:${raceSessionId(event.id)}`),
+      })),
+    );
+    const winners = records
+      .map(({ event, set, resultSet }) => ({
+        event,
+        set,
+        resultSet,
+        row: (resultSet?.items || []).find((entry) => entry.position === 1),
+      }))
+      .filter(({ row }) => driverNames(row).length)
+      .sort((a, b) => {
+        const dateA = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '') || 0;
+        const dateB = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '') || 0;
+        return dateB - dateA || (b.event.year || 0) - (a.event.year || 0) || (b.event.round || 0) - (a.event.round || 0);
+      });
+    const limit = Math.min(Math.max(Number(intent.limit) || 1, 1), 10);
+    const selected = winners.slice(0, limit);
+    const evidenceSets = [
+      ...profileSets,
+      ...selected.flatMap(({ set, resultSet }) => [set, resultSet].filter(Boolean)),
+    ];
+    if (!selected.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `Published race winners are not available for ${circuit.entity.displayName}.`,
+          reasonCode: 'WINNERS_NOT_PUBLISHED',
+        },
+        evidenceSets,
+      );
+    const lines = selected.map(({ event, row }) => {
+      const driver = driverNames(row)[0];
+      const constructor = row.entry?.constructor?.displayName;
+      return `${event.year} ${event.name} — ${driver.displayName}${constructor ? ` (${constructor})` : ''}`;
+    });
+    const answer = `The last ${selected.length} published race${selected.length === 1 ? '' : 's'} at ${circuit.entity.displayName}: ${lines.join('; ')}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'circuit_race_winners',
+        templateKey: 'circuit_race_winners',
+        values: {
+          answer,
+          circuit: circuit.entity.displayName,
+          count: selected.length,
+          winners: lines.join('; '),
+        },
+        evidenceIds: unique(evidenceSets.map((set) => set?.evidenceId)),
+      },
+      evidenceSets,
+    );
   }
 
   findProfile(items, kind, name) {
@@ -1005,7 +1123,7 @@ export class QuestionService {
     ].filter(Boolean);
     const evidenceSets = [
       ...profileSets,
-      ...eventSets,
+      ...records.map(({ set }) => set),
       ...records.map(({ weather }) => weather).filter(Boolean),
     ];
     const unavailable = (message, reasonCode) =>

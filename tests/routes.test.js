@@ -140,6 +140,46 @@ test('circuit-scoped question plans compare published weather periods', async ()
   assert.equal(response.result.values.comparisonRainfallObservations, 1);
 });
 
+test('circuit winner questions return the last published races without clarification', async () => {
+  const { repository } = appFixture();
+  const currentEvents = await repository.get('events:2024');
+  const currentEvent = currentEvents.items[0];
+  const currentResults = await repository.get(`results:${sessionId}`);
+  for (const year of [2022, 2023]) {
+    const priorEvent = {
+      ...currentEvent,
+      id: `event:${year}:synthetic-grand-prix`,
+      year,
+      schedule: { ...currentEvent.schedule, date: `${year}-01-01` },
+    };
+    const priorSessionId = `session:${priorEvent.id}:race`;
+    repository.sets.set(`events:${year}`, {
+      ...currentEvents,
+      key: `events:${year}`,
+      items: [priorEvent],
+    });
+    repository.sets.set(`results:${priorSessionId}`, {
+      ...currentResults,
+      key: `results:${priorSessionId}`,
+      items: currentResults.items.map((row) => ({
+        ...row,
+        id: row.id.replace(sessionId, priorSessionId),
+        sessionId: priorSessionId,
+      })),
+    });
+  }
+  const service = new QuestionService(repository);
+  const response = await service.answer(
+    { text: 'Who won the last three races at Example Circuit?' },
+    { get: repository.get.bind(repository), keys: repository.keys.bind(repository) },
+  );
+  assert.equal(response.result.status, 'answered');
+  assert.equal(response.result.resolvedIntent, 'circuit_race_winners');
+  assert.match(response.result.values.answer, /2024/);
+  assert.match(response.result.values.answer, /2023/);
+  assert.match(response.result.values.answer, /2022/);
+});
+
 test('natural-language questions return database-backed answers without a model', async () => {
   const { app, repository } = appFixture();
   const winner = await request(app)

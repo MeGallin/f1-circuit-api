@@ -4,7 +4,7 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 
 ## Resolution order
 
-1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event winners, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, driver history, driver/constructor counts, separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ, plus published session metrics for weather, tyre strategy, race control and overtakes.
+1. Deterministic templates handle safe, recognisable query shapes without an AI provider. This includes archive searches, event winners, circuit race-winner history, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, driver history, driver/constructor counts, separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ, plus published session metrics for weather, tyre strategy, race control and overtakes.
 2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter produces a strict JSON query plan. The plan can describe an event, circuit, season or career scope, a metric, relative year ranges and a comparison.
 3. The backend validates the plan, resolves every named entity to a canonical database record, and executes it against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
 4. Unsupported, ambiguous, unavailable and partial states are returned explicitly so the client can explain what happened without inventing an answer.
