@@ -101,7 +101,7 @@ test('natural-language questions return database-backed answers without a model'
 
   const count = await request(app)
     .post('/api/v1/questions')
-    .send({ text: 'How many race starts did Example One make for Example Team in 2024?' })
+    .send({ text: 'How many times did Example One drive for Example Team in 2024?' })
     .expect(200);
   assert.equal(count.body.data.questionResult.status, 'answered');
   assert.equal(count.body.data.questionResult.values.count, 1);

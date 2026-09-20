@@ -115,7 +115,7 @@ export class QuestionService {
       if (driver && constructor) {
         const metric = /\bseason/.test(lower)
           ? 'seasons'
-          : /\brace\b|\bstart/.test(lower)
+          : /\brace\b|\bstart|\bdrive|\bdrove|\braced|\btimes\b/.test(lower)
             ? 'race_starts'
             : null;
         if (!metric)
