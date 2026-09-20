@@ -45,6 +45,8 @@ This document is the acceptance matrix for `POST /api/v1/questions`. It is delib
 13. **Question scope:** years and periods belong to the question. An Explore query must not inherit the currently selected UI season unless the user says so.
 14. **Compound questions:** answer every requested clause or state exactly which clause is unavailable. Never answer only the first recognizable phrase.
 15. **Comparisons:** calculate both sides with the same scope, metric and coverage boundary; do not compare a current snapshot with a career total.
+16. **Scope:** distinguish an event question from a circuit, season or career question. “Silverstone” is a circuit scope; it must not be forced into one Grand Prix.
+17. **Relative periods:** convert “this year” and “last year” to explicit years before querying. Do not use the selected UI season as an implicit answer scope.
 
 ## Implementation gates
 

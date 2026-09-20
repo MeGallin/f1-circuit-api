@@ -2,6 +2,18 @@ import OpenAI from 'openai';
 
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 const nullableInteger = { anyOf: [{ type: 'integer' }, { type: 'null' }] };
+const nullableScope = {
+  anyOf: [
+    { type: 'string', enum: ['event', 'circuit', 'season', 'career', 'unknown'] },
+    { type: 'null' },
+  ],
+};
+const nullableSessionKind = {
+  anyOf: [
+    { type: 'string', enum: ['race', 'qualifying', 'sprint', 'practice', 'weekend'] },
+    { type: 'null' },
+  ],
+};
 
 export const questionIntentSchema = {
   type: 'object',
@@ -29,8 +41,13 @@ export const questionIntentSchema = {
     comparisonDriverName: nullableString,
     constructorName: nullableString,
     eventName: nullableString,
+    circuitName: nullableString,
+    scope: nullableScope,
+    sessionKind: nullableSessionKind,
     fromYear: nullableInteger,
     toYear: nullableInteger,
+    comparisonFromYear: nullableInteger,
+    comparisonToYear: nullableInteger,
     metric: {
       anyOf: [
         {
@@ -77,8 +94,13 @@ export const questionIntentSchema = {
     'comparisonDriverName',
     'constructorName',
     'eventName',
+    'circuitName',
+    'scope',
+    'sessionKind',
     'fromYear',
     'toYear',
+    'comparisonFromYear',
+    'comparisonToYear',
     'metric',
     'clarificationNeeded',
     'clarificationMessage',
@@ -93,6 +115,8 @@ const systemPrompt = [
   'The application will resolve names and query its own database after your response.',
   'Use null when a field is not present. Set clarificationNeeded true when the request is ambiguous.',
   'Do not infer a driver, constructor, event or year that is not stated by the user.',
+  'For a question about a venue or circuit across one or more years, use scope=circuit and circuitName. Use the supplied currentYear to resolve “this year” and “last year”.',
+  'For comparisons, populate fromYear/toYear for the first period and comparisonFromYear/comparisonToYear for the second period. Do not answer the question yourself.',
 ].join(' ');
 
 export class OpenAIQuestionInterpreter {

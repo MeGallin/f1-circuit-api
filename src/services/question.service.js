@@ -115,7 +115,10 @@ export class QuestionService {
 
   async answer(body, { snapshot: _snapshot, get, keys }) {
     const text = String(body?.text || '').trim();
-    const context = contextWith(body?.context);
+    const context = contextWith({
+      ...body?.context,
+      currentYear: new Date().getUTCFullYear(),
+    });
     const deterministic = await this.interpretDeterministically(text, context, { get, keys });
     if (deterministic) return deterministic;
 
@@ -256,12 +259,17 @@ export class QuestionService {
         text,
       );
     }
+    const hasExplicitEventReference =
+      /\b(?:grand prix|gp)\b/.test(lower) || /\b(19\d{2}|20\d{2})\b/.test(lower);
     if (
-      /\b(weather|rain(?:fall)?|temperature|wind|humidity|track conditions?)\b/.test(lower) ||
-      /\b(tyres?|tires?|compound|stints?)\b/.test(lower) ||
-      /\b(race control|safety cars?|red flags?|yellow flags?|virtual safety cars?)\b/.test(lower) ||
-      /\b(overtakes?|passing|passes)\b/.test(lower) ||
-      /\b(telemetry|top speed|fastest speed|maximum speed)\b/.test(lower)
+      hasExplicitEventReference &&
+      (/\b(weather|rain(?:fall)?|temperature|wind|humidity|track conditions?)\b/.test(lower) ||
+        /\b(tyres?|tires?|compound|stints?)\b/.test(lower) ||
+        /\b(race control|safety cars?|red flags?|yellow flags?|virtual safety cars?)\b/.test(
+          lower,
+        ) ||
+        /\b(overtakes?|passing|passes)\b/.test(lower) ||
+        /\b(telemetry|top speed|fastest speed|maximum speed)\b/.test(lower))
     ) {
       const { items } = await this.profiles(helpers);
       const drivers = items
@@ -458,7 +466,9 @@ export class QuestionService {
     if (intent?.intent === 'event_pit_stops')
       return this.eventPitStops(intent, context, originalText, { get, keys });
     if (intent?.intent === 'event_session_metric')
-      return this.eventSessionMetric(intent, context, originalText, { get, keys });
+      return intent.scope === 'circuit' || intent.circuitName
+        ? this.circuitSessionMetric(intent, context, originalText, { get, keys })
+        : this.eventSessionMetric(intent, context, originalText, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -883,6 +893,176 @@ export class QuestionService {
         ]),
       },
       [resolved.set, pitSet, resultSet, detail],
+    );
+  }
+
+  async circuitSessionMetric(intent, context, text, helpers) {
+    const { get, keys } = helpers;
+    const { sets: profileSets, items: profiles } = await this.profiles(helpers);
+    const circuit = this.findProfile(profiles, 'circuit', intent.circuitName);
+    if (!circuit)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which circuit do you mean?',
+          choices: [],
+        },
+        profileSets,
+      );
+
+    const currentYear = Number(context.currentYear) || new Date().getUTCFullYear();
+    const primary =
+      Number.isInteger(intent.fromYear) || Number.isInteger(intent.toYear)
+        ? {
+            fromYear: Number(intent.fromYear ?? intent.toYear),
+            toYear: Number(intent.toYear ?? intent.fromYear),
+          }
+        : yearRange(text, { ...context, year: currentYear });
+    const primaryRange = {
+      fromYear: primary.fromYear ?? currentYear,
+      toYear: primary.toYear ?? primary.fromYear ?? currentYear,
+    };
+    const comparison =
+      Number.isInteger(intent.comparisonFromYear) || Number.isInteger(intent.comparisonToYear)
+        ? {
+            fromYear: Number(intent.comparisonFromYear ?? intent.comparisonToYear),
+            toYear: Number(intent.comparisonToYear ?? intent.comparisonFromYear),
+          }
+        : null;
+    const comparisonRange = comparison
+      ? {
+          fromYear: comparison.fromYear,
+          toYear: comparison.toYear ?? comparison.fromYear,
+        }
+      : null;
+    const yearSet = (range) =>
+      Array.from(
+        { length: Math.max(0, range.toYear - range.fromYear + 1) },
+        (_, index) => range.fromYear + index,
+      );
+    const years = unique([
+      ...yearSet(primaryRange).map(String),
+      ...(comparisonRange ? yearSet(comparisonRange).map(String) : []),
+    ]).map(Number);
+    const eventKeys = unique(
+      (await Promise.all(years.map((year) => keys(`events:${year}`)))).flat(),
+    );
+    const eventSets = await Promise.all(eventKeys.map(get));
+    const circuitTargets = unique(
+      [circuit.entity.displayName, circuit.entity.id, ...(circuit.aliases || [])].map(normalize),
+    );
+    const events = eventSets
+      .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
+      .filter(({ event }) => {
+        const value = normalize(`${event.circuit?.displayName || ''} ${event.circuit?.id || ''}`);
+        return circuitTargets.some(
+          (target) => value === target || value.includes(target) || target.includes(value),
+        );
+      });
+    const sessionKind =
+      intent.sessionKind && intent.sessionKind !== 'weekend' ? intent.sessionKind : 'race';
+    const records = await Promise.all(
+      events.map(async ({ event, set }) => ({
+        event,
+        set,
+        weather: await get(`weather:session:${event.id}:${sessionKind}`),
+      })),
+    );
+    const summarize = (range) => {
+      const selected = records.filter(
+        ({ event }) => event.year >= range.fromYear && event.year <= range.toYear,
+      );
+      const weatherSets = selected.map((record) => record.weather).filter(Boolean);
+      const rows = weatherSets.flatMap((set) => set.items || []);
+      const values = (field) => rows.map((row) => row[field]).filter(Number.isFinite);
+      const rangeFor = (items) =>
+        items.length
+          ? { min: Math.min(...items), max: Math.max(...items) }
+          : { min: null, max: null };
+      const air = rangeFor(values('airTemperatureC'));
+      const track = rangeFor(values('trackTemperatureC'));
+      const rainfall = rows.filter((row) => row.rainfall === true).length;
+      return {
+        fromYear: range.fromYear,
+        toYear: range.toYear,
+        events: selected,
+        weatherSets,
+        observations: rows.length,
+        air,
+        track,
+        rainfall,
+      };
+    };
+    const primarySummary = summarize(primaryRange);
+    const comparisonSummary = comparisonRange ? summarize(comparisonRange) : null;
+    const missing = [
+      primarySummary.observations ? null : `${primaryRange.fromYear}-${primaryRange.toYear}`,
+      comparisonSummary?.observations
+        ? null
+        : comparisonRange
+          ? `${comparisonRange.fromYear}-${comparisonRange.toYear}`
+          : null,
+    ].filter(Boolean);
+    const evidenceSets = [
+      ...profileSets,
+      ...eventSets,
+      ...records.map(({ weather }) => weather).filter(Boolean),
+    ];
+    const unavailable = (message, reasonCode) =>
+      this.result(
+        {
+          status: 'unavailable',
+          message,
+          reasonCode,
+        },
+        evidenceSets,
+      );
+    if (missing.length)
+      return unavailable(
+        `Published weather observations are not available for ${circuit.entity.displayName} for ${missing.join(' and ')}.`,
+        comparisonRange ? 'WEATHER_COMPARISON_NOT_PUBLISHED' : 'WEATHER_NOT_PUBLISHED',
+      );
+    const periodLabel = (summary) =>
+      summary.fromYear === summary.toYear
+        ? String(summary.fromYear)
+        : `${summary.fromYear}-${summary.toYear}`;
+    const temperatureText = (summary) =>
+      summary.air.min === null
+        ? 'air temperature was not supplied'
+        : `air temperature ranged from ${summary.air.min}°C to ${summary.air.max}°C`;
+    const answer = comparisonSummary
+      ? `At ${circuit.entity.displayName}, ${periodLabel(primarySummary)} had ${temperatureText(primarySummary)} and ${primarySummary.rainfall} rainfall observation${primarySummary.rainfall === 1 ? '' : 's'}. In ${periodLabel(comparisonSummary)}, ${temperatureText(comparisonSummary)} and ${comparisonSummary.rainfall} rainfall observation${comparisonSummary.rainfall === 1 ? '' : 's'} were published.`
+      : `At ${circuit.entity.displayName}, ${periodLabel(primarySummary)} had ${temperatureText(primarySummary)} and ${primarySummary.rainfall} rainfall observation${primarySummary.rainfall === 1 ? '' : 's'}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_session_metric',
+        templateKey: 'circuit_weather_comparison',
+        values: {
+          answer,
+          circuit: circuit.entity.displayName,
+          period: periodLabel(primarySummary),
+          events: primarySummary.events.map(({ event }) => event.name).join(', '),
+          observations: primarySummary.observations,
+          airTemperatureMinC: primarySummary.air.min,
+          airTemperatureMaxC: primarySummary.air.max,
+          trackTemperatureMinC: primarySummary.track.min,
+          trackTemperatureMaxC: primarySummary.track.max,
+          rainfallObservations: primarySummary.rainfall,
+          comparisonPeriod: comparisonSummary ? periodLabel(comparisonSummary) : null,
+          comparisonEvents: comparisonSummary
+            ? comparisonSummary.events.map(({ event }) => event.name).join(', ')
+            : null,
+          comparisonObservations: comparisonSummary?.observations || null,
+          comparisonAirTemperatureMinC: comparisonSummary?.air.min || null,
+          comparisonAirTemperatureMaxC: comparisonSummary?.air.max || null,
+          comparisonTrackTemperatureMinC: comparisonSummary?.track.min || null,
+          comparisonTrackTemperatureMaxC: comparisonSummary?.track.max || null,
+          comparisonRainfallObservations: comparisonSummary?.rainfall || 0,
+        },
+        evidenceIds: unique(evidenceSets.map((set) => set?.evidenceId)),
+      },
+      evidenceSets,
     );
   }
 

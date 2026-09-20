@@ -5,8 +5,8 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 ## Resolution order
 
 1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event winners, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, driver history, driver/constructor counts, separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ, plus published session metrics for weather, tyre strategy, race control and overtakes.
-2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter can classify the question into a strict JSON intent.
-3. The backend validates and executes that intent against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
+2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter produces a strict JSON query plan. The plan can describe an event, circuit, season or career scope, a metric, relative year ranges and a comparison.
+3. The backend validates the plan, resolves every named entity to a canonical database record, and executes it against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
 4. Unsupported, ambiguous, unavailable and partial states are returned explicitly so the client can explain what happened without inventing an answer.
 
 ## Configuration
@@ -27,7 +27,7 @@ Never place `OPENAI_API_KEY` in the React client, commit it to Git, or expose it
 
 Successful responses include `data.questionResult` and the normal archive `meta` envelope. Answered results include a deterministic natural-language `values.answer`, structured values, and any available evidence IDs. The frontend renders the answer and links to evidence; it does not generate factual text.
 
-The endpoint does not call Jolpica, F1DB or OpenF1 at question time. Those providers feed the server-side import and reconciliation pipeline; questions query the resulting normalized publication snapshot.
+The endpoint does not call Jolpica, F1DB or OpenF1 at question time. Those providers feed the server-side import and reconciliation pipeline; questions query the resulting normalized publication snapshot. A circuit-scoped question can therefore span multiple events and years without requiring a separate handler for every wording variation.
 
 ## Metric semantics and edge cases
 
@@ -36,5 +36,7 @@ The question layer counts unique canonical race events. A race start includes a 
 Race, sprint, qualifying and sprint qualifying are different sessions. Race wins, podiums and fastest laps use the race session; pole uses qualifying; sprint results are not silently included in race totals. Pit-stop answers aggregate published pit-stop rows by the linked race entry, preserve ties, and state whether a fastest duration is stationary or lane duration.
 
 Session metrics are read from normalized, published detail sets. Weather answers summarize recorded observations; tyre answers use stint compounds and lap boundaries; race-control answers classify published messages; and overtake answers count linked passing entrants. OpenF1 describes its overtake feed as potentially incomplete, so the response is explicitly limited to published rows and returns unavailable when entrant mapping or coverage is insufficient. Raw car telemetry is not persisted as a general-purpose sample stream; speed questions remain unavailable until a bounded, validated summary is published.
+
+Relative periods such as “this year” and “last year” are resolved into explicit year ranges by the query plan. A circuit comparison resolves the circuit once, finds its canonical events in each requested range, and aggregates only the corresponding published session datasets. It must never inherit the Explore page’s selected season unless the question explicitly supplies a year or relative period.
 
 The complete acceptance matrix, including examples for compound questions, current seasons, partial coverage, ties, missing fields, source conflicts and unsupported datasets, is maintained in `docs/QUESTION-COVERAGE.md`.

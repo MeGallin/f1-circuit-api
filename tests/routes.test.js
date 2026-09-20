@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { operations, validateSchema } from '../src/schemas/contract.js';
+import { QuestionService } from '../src/services/question.service.js';
 import { appFixture, eventId, exampleRequest, sessionId } from './helpers.js';
 test('every documented operation returns its schema with explicit data/coverage', async () => {
   const { app, repository } = appFixture();
@@ -78,6 +79,65 @@ test('search matches comma-separated terms while preserving record type filters'
     events.body.data.items.map((item) => item.entity.displayName),
     ['Synthetic Grand Prix'],
   );
+});
+
+test('circuit-scoped question plans compare published weather periods', async () => {
+  const { repository } = appFixture();
+  const currentEvents = await repository.get('events:2024');
+  const currentEvent = currentEvents.items[0];
+  const priorEvent = {
+    ...currentEvent,
+    id: 'event:2023:synthetic-grand-prix',
+    year: 2023,
+    schedule: { ...currentEvent.schedule, date: '2023-01-01' },
+  };
+  repository.sets.set('events:2023', {
+    ...currentEvents,
+    key: 'events:2023',
+    items: [priorEvent],
+  });
+  repository.sets.set(`weather:session:${currentEvent.id}:race`, {
+    key: `weather:session:${currentEvent.id}:race`,
+    schema: 'Weather',
+    items: [{ airTemperatureC: 24, trackTemperatureC: 38, rainfall: false }],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:weather-2024',
+    provenance: { retrievedAt: '2024-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+  repository.sets.set(`weather:session:${priorEvent.id}:race`, {
+    key: `weather:session:${priorEvent.id}:race`,
+    schema: 'Weather',
+    items: [{ airTemperatureC: 20, trackTemperatureC: 31, rainfall: true }],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:weather-2023',
+    provenance: { retrievedAt: '2023-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+  const service = new QuestionService(repository);
+  const response = await service.executeIntent(
+    {
+      intent: 'event_session_metric',
+      scope: 'circuit',
+      circuitName: 'Example Circuit',
+      sessionKind: 'weekend',
+      metric: 'weather_summary',
+      fromYear: 2024,
+      toYear: 2024,
+      comparisonFromYear: 2023,
+      comparisonToYear: 2023,
+      clarificationNeeded: false,
+    },
+    { currentYear: 2024 },
+    { get: repository.get.bind(repository), keys: repository.keys.bind(repository) },
+    'What was the weather like at Example Circuit in 2024 compared to 2023?',
+  );
+  assert.equal(response.result.status, 'answered');
+  assert.match(response.result.values.answer, /2024/);
+  assert.match(response.result.values.answer, /2023/);
+  assert.equal(response.result.values.comparisonRainfallObservations, 1);
 });
 
 test('natural-language questions return database-backed answers without a model', async () => {
