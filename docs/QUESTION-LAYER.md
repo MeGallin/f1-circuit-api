@@ -4,7 +4,7 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 
 ## Resolution order
 
-1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event-winner questions with an event context, and supported driver/constructor counts.
+1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event-winner questions with an event context, last-win questions and supported driver/constructor counts.
 2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter can classify the question into a strict JSON intent.
 3. The backend validates and executes that intent against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
 4. Unsupported, ambiguous, unavailable and partial states are returned explicitly so the client can explain what happened without inventing an answer.
@@ -16,7 +16,7 @@ The deterministic path works with no model credentials. To enable the optional i
 ```text
 OPENAI_ENABLED=true
 OPENAI_API_KEY=replace-with-a-server-side-key
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5.6-luna
 OPENAI_TIMEOUT_MS=10000
 ```
 

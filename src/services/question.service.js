@@ -42,6 +42,19 @@ function yearFromEventId(eventId) {
   return match ? Number(match[1]) : null;
 }
 
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.valueOf())
+    ? value
+    : new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(date);
+}
+
 export class QuestionService {
   constructor(repository, { config = {} } = {}) {
     this.repository = repository;
@@ -152,6 +165,28 @@ export class QuestionService {
         );
       }
     }
+    if (
+      /\bwhen\b/.test(lower) &&
+      /\b(last|most\s+recent)\b/.test(lower) &&
+      /\b(win|won|victory)\b/.test(lower)
+    ) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      if (driver)
+        return this.executeIntent(
+          {
+            intent: 'driver_last_win',
+            driverName: driver.entity.displayName,
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+    }
     if (/^((search|find|show|look up)\b|[a-z0-9]+([ ,+]+[a-z0-9]+){0,3}$)/i.test(text))
       return this.executeIntent({ intent: 'archive_search', searchTerms: text }, context, helpers);
     return null;
@@ -176,6 +211,8 @@ export class QuestionService {
       return this.eventWinner(intent.eventName, context, originalText, { get, keys });
     if (intent?.intent === 'driver_constructor_race_starts')
       return this.driverConstructorStarts(intent, context, { get, keys });
+    if (intent?.intent === 'driver_last_win')
+      return this.driverLastWin(intent, context, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -399,6 +436,90 @@ export class QuestionService {
         ]).slice(0, 12),
       },
       [...sets, ...resultSets],
+    );
+  }
+
+  async driverLastWin(intent, _context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which driver do you mean?',
+          choices: [],
+        },
+        sets,
+      );
+
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const wins = [];
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !row.sessionId?.endsWith(':race') ||
+          row.position !== 1 ||
+          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driver.id)
+        )
+          continue;
+        const eventId = sessionEventId(row.sessionId);
+        if (eventId) wins.push({ eventId, row, resultSet: set });
+      }
+    }
+    const details = await Promise.all(
+      [...new Set(wins.map((win) => win.eventId))].map((eventId) =>
+        get(`event:${eventId}`),
+      ),
+    );
+    const detailsByEvent = new Map(
+      details
+        .map((set) => [set?.items?.[0]?.event?.id, { detail: set, event: set?.items?.[0]?.event }])
+        .filter(([eventId, value]) => eventId && value.event),
+    );
+    const datedWins = wins
+      .map((win) => ({ ...win, ...detailsByEvent.get(win.eventId) }))
+      .filter((win) => win.event)
+      .sort((a, b) => {
+        const aDate = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '');
+        const bDate = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '');
+        return bDate - aDate || (b.event.round || 0) - (a.event.round || 0);
+      });
+    const latest = datedWins[0];
+    if (!latest)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `No published race win was found for ${driver.entity.displayName}.`,
+          reasonCode: 'DRIVER_WIN_NOT_PUBLISHED',
+        },
+        [...sets, ...resultSets, ...details],
+      );
+
+    const event = latest.event;
+    const date = event.schedule?.date || null;
+    const constructor = latest.row.entry?.constructor?.displayName || null;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_last_win',
+        templateKey: 'driver_last_win',
+        values: {
+          answer: `${driver.entity.displayName} last won the ${event.name} on ${formatDate(date) || event.year}.`,
+          driver: driver.entity.displayName,
+          constructor,
+          event: event.name,
+          year: event.year,
+          date,
+          round: event.round,
+          circuit: event.circuit?.displayName || null,
+        },
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          latest.resultSet.evidenceId,
+          latest.detail.evidenceId,
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets, ...details],
     );
   }
 
