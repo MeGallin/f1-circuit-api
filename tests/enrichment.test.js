@@ -157,7 +157,16 @@ test('representative mapped OpenF1 race measures 1000 laps without telemetry', a
             ]
           : url.startsWith('laps')
             ? laps
-            : [],
+            : url.startsWith('overtakes')
+              ? [
+                  {
+                    date: '2024-07-07T14:10:00Z',
+                    lap_number: 5,
+                    overtaking_driver_number: 1,
+                    overtaken_driver_number: 2,
+                  },
+                ]
+              : [],
       };
     },
   });
@@ -169,6 +178,10 @@ test('representative mapped OpenF1 race measures 1000 laps without telemetry', a
   assert.equal(lapSet.items.length, 1000);
   assert.equal(lapSet.items[0].entryId, 'entry:0');
   assert.equal(lapSet.items[0].durationMs, 90123);
+  const overtakeSet = normalized.sets.find((s) => s.schema === 'Overtake');
+  assert.equal(overtakeSet.items.length, 1);
+  assert.equal(overtakeSet.items[0].passingEntryId, 'entry:0');
+  assert.equal(overtakeSet.items[0].passedEntryId, 'entry:1');
   assert.equal(
     calls.some((url) => url.includes('car_data') || url.includes('location')),
     false,
@@ -181,7 +194,7 @@ test('representative mapped OpenF1 race measures 1000 laps without telemetry', a
     await repo.publish(normalized.sets, {});
     assert.equal(
       Number((await pool.query('SELECT count(*) AS n FROM normalized_records')).rows[0].n),
-      1100,
+      1101,
     );
     console.log(
       JSON.stringify({
@@ -189,7 +202,7 @@ test('representative mapped OpenF1 race measures 1000 laps without telemetry', a
         laps: 1000,
         normalizedJsonBytes: Buffer.byteLength(JSON.stringify(lapSet.items)),
         coreRowsAfterTwoPublishes: 100,
-        totalRows: 1100,
+        totalRows: 1101,
       }),
     );
   } finally {

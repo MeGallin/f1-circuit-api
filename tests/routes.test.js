@@ -81,7 +81,7 @@ test('search matches comma-separated terms while preserving record type filters'
 });
 
 test('natural-language questions return database-backed answers without a model', async () => {
-  const { app } = appFixture();
+  const { app, repository } = appFixture();
   const winner = await request(app)
     .post('/api/v1/questions')
     .send({
@@ -216,4 +216,105 @@ test('natural-language questions return database-backed answers without a model'
     .expect(200);
   assert.equal(ambiguousDnf.body.data.questionResult.status, 'clarification');
   assert.match(ambiguousDnf.body.data.questionResult.message, /retirements/);
+
+  const resultRows = (await repository.get(`results:${sessionId}`)).items;
+  const entryId = resultRows[0].entry.id;
+  repository.sets.set(`stints:${sessionId}`, {
+    key: `stints:${sessionId}`,
+    schema: 'Stint',
+    items: [
+      {
+        entryId: await entryId,
+        sequence: 1,
+        startLap: 1,
+        endLap: 5,
+        compoundLabel: 'Soft',
+        compoundClass: 'soft',
+        tyreAgeAtStart: 0,
+        tyreState: 'new',
+      },
+      {
+        entryId: await entryId,
+        sequence: 2,
+        startLap: 6,
+        endLap: 10,
+        compoundLabel: 'Medium',
+        compoundClass: 'medium',
+        tyreAgeAtStart: 0,
+        tyreState: 'new',
+      },
+    ],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:synthetic-stints',
+    provenance: { retrievedAt: '2024-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+  repository.sets.set(`weather:${sessionId}`, {
+    key: `weather:${sessionId}`,
+    schema: 'Weather',
+    items: [
+      { airTemperatureC: 23, trackTemperatureC: 35, rainfall: false },
+      { airTemperatureC: 24, trackTemperatureC: 36, rainfall: true },
+    ],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:synthetic-weather',
+    provenance: { retrievedAt: '2024-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+  repository.sets.set(`race-control:${sessionId}`, {
+    key: `race-control:${sessionId}`,
+    schema: 'RaceControl',
+    items: [
+      { category: 'SafetyCar', message: 'Safety Car deployed', flag: null },
+      { category: 'Flag', message: 'Red flag', flag: 'RED' },
+    ],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:synthetic-control',
+    provenance: { retrievedAt: '2024-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+  repository.sets.set(`overtakes:${sessionId}`, {
+    key: `overtakes:${sessionId}`,
+    schema: 'Overtake',
+    items: [
+      { passingEntryId: entryId, passedEntryId: resultRows[1].entry.id, lap: 5 },
+      { passingEntryId: entryId, passedEntryId: resultRows[1].entry.id, lap: 12 },
+      { passingEntryId: resultRows[1].entry.id, passedEntryId: entryId, lap: 18 },
+    ],
+    coverage: 'partial',
+    verification: 'source-only',
+    evidenceId: 'evidence:synthetic-overtakes',
+    provenance: { retrievedAt: '2024-01-02T00:00:00Z', sources: [] },
+    warnings: [],
+  });
+
+  const tyres = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'What tyres did Example One use at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(tyres.body.data.questionResult.values.compounds, 'Soft, Medium');
+  assert.equal(tyres.body.data.questionResult.values.stintCount, 2);
+
+  const weather = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Did it rain at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(weather.body.data.questionResult.values.rainfallObservations, 1);
+
+  const raceControl = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many safety cars were there at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(raceControl.body.data.questionResult.values.safetyCarEvents, 1);
+
+  const overtakes = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Who made the most overtakes at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(overtakes.body.data.questionResult.status, 'answered');
+  assert.equal(overtakes.body.data.questionResult.values.count, 2);
+  assert.match(overtakes.body.data.questionResult.values.answer, /Example One/);
 });

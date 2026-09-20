@@ -254,6 +254,61 @@ export class QuestionService {
         text,
       );
     }
+    if (
+      /\b(weather|rain(?:fall)?|temperature|wind|humidity|track conditions?)\b/.test(lower) ||
+      /\b(tyres?|tires?|compound|stints?)\b/.test(lower) ||
+      /\b(race control|safety cars?|red flags?|yellow flags?|virtual safety cars?)\b/.test(lower) ||
+      /\b(overtakes?|passing|passes)\b/.test(lower) ||
+      /\b(telemetry|top speed|fastest speed|maximum speed)\b/.test(lower)
+    ) {
+      const { items } = await this.profiles(helpers);
+      const drivers = items
+        .filter(
+          (profile) =>
+            profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+        )
+        .sort(
+          (a, b) =>
+            lower.indexOf(normalize(a.entity.displayName)) -
+            lower.indexOf(normalize(b.entity.displayName)),
+        );
+      const metric = /\b(weather|track conditions?)\b/.test(lower)
+        ? 'weather_summary'
+        : /\brain(?:fall)?\b/.test(lower)
+          ? 'rainfall'
+          : /\btemperature|wind|humidity\b/.test(lower)
+            ? 'temperatures'
+            : /\b(tyres?|tires?|compound|stints?)\b/.test(lower)
+              ? /\bhow many\b.*\blaps?\b/.test(lower)
+                ? 'tyre_laps'
+                : /\bhow many\b.*\bstints?\b/.test(lower)
+                  ? 'tyre_stints'
+                  : 'tyre_compounds'
+              : /\bsafety cars?|virtual safety cars?\b/.test(lower)
+                ? 'safety_car_events'
+                : /\bred flags?\b/.test(lower)
+                  ? 'red_flag_events'
+                  : /\brace control|yellow flags?\b/.test(lower)
+                    ? 'race_control_events'
+                    : /\bovertakes?|passing|passes\b/.test(lower)
+                      ? /\bmost|highest|more\b/.test(lower)
+                        ? 'most_overtakes'
+                        : 'overtakes'
+                      : 'fastest_speed';
+      return this.executeIntent(
+        {
+          intent: 'event_session_metric',
+          driverName: drivers[0]?.entity.displayName || null,
+          comparisonDriverName: drivers[1]?.entity.displayName || null,
+          metric,
+          eventName: null,
+          originalText: text,
+        },
+        context,
+        helpers,
+        text,
+      );
+    }
     if (/\b(podium|top\s+(?:three|3))\b/.test(lower) && !/\bhow\s+many\b/.test(lower))
       return this.executeIntent(
         { intent: 'event_podium', eventName: null, originalText: text },
@@ -400,6 +455,8 @@ export class QuestionService {
       return this.eventFastestLap(intent.eventName, context, originalText, { get, keys });
     if (intent?.intent === 'event_pit_stops')
       return this.eventPitStops(intent, context, originalText, { get, keys });
+    if (intent?.intent === 'event_session_metric')
+      return this.eventSessionMetric(intent, context, originalText, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -824,6 +881,327 @@ export class QuestionService {
         ]),
       },
       [resolved.set, pitSet, resultSet, detail],
+    );
+  }
+
+  async eventSessionMetric(intent, context, text, helpers) {
+    const resolved = await this.resolveEvent(intent.eventName, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+    const sessionId = raceSessionId(resolved.eventId);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    const datasetKey = {
+      weather_summary: 'weather',
+      rainfall: 'weather',
+      temperatures: 'weather',
+      tyre_compounds: 'stints',
+      tyre_stints: 'stints',
+      tyre_laps: 'stints',
+      race_control_events: 'race-control',
+      safety_car_events: 'race-control',
+      red_flag_events: 'race-control',
+      overtakes: 'overtakes',
+      most_overtakes: 'overtakes',
+      fastest_speed: 'telemetry',
+    }[intent.metric];
+    const dataSet = datasetKey ? await helpers.get(`${datasetKey}:${sessionId}`) : null;
+    const unavailable = (message, reasonCode, sets = [resolved.set, dataSet, detail]) =>
+      this.result({ status: 'unavailable', message, reasonCode }, sets);
+    if (!dataSet || !dataSet.items?.length)
+      return unavailable(
+        `${datasetKey === 'stints' ? 'Tyre-stint' : datasetKey === 'race-control' ? 'Race-control' : datasetKey === 'overtakes' ? 'Overtake' : datasetKey === 'telemetry' ? 'Telemetry' : 'Weather'} data is not published for ${event?.name || 'that event'}.`,
+        `${datasetKey.toUpperCase().replaceAll('-', '_')}_NOT_PUBLISHED`,
+      );
+
+    if (datasetKey === 'weather') {
+      const rows = dataSet.items;
+      const air = rows.map((row) => row.airTemperatureC).filter(Number.isFinite);
+      const track = rows.map((row) => row.trackTemperatureC).filter(Number.isFinite);
+      const rainfall = rows
+        .map((row) => row.rainfall)
+        .filter((value) => typeof value === 'boolean');
+      const range = (values) =>
+        values.length
+          ? { min: Math.min(...values), max: Math.max(...values) }
+          : { min: null, max: null };
+      const airRange = range(air);
+      const trackRange = range(track);
+      if (intent.metric === 'rainfall' && !rainfall.length)
+        return unavailable(
+          `Rainfall observations are not published for ${event?.name || 'that event'}.`,
+          'WEATHER_RAINFALL_NOT_PUBLISHED',
+        );
+      if (intent.metric === 'temperatures' && !air.length && !track.length)
+        return unavailable(
+          `Temperature observations are not published for ${event?.name || 'that event'}.`,
+          'WEATHER_TEMPERATURE_NOT_PUBLISHED',
+        );
+      const rainCount = rainfall.filter(Boolean).length;
+      const answer =
+        intent.metric === 'rainfall'
+          ? `Rainfall was ${rainCount ? 'recorded' : 'not recorded'} in ${rainCount || rainfall.length} published weather observation${(rainCount || rainfall.length) === 1 ? '' : 's'} at the ${event?.name || 'event'}.`
+          : `The ${event?.name || 'event'} has ${rows.length} published weather observations${air.length ? `, with air temperature from ${airRange.min}°C to ${airRange.max}°C` : ''}${track.length ? ` and track temperature from ${trackRange.min}°C to ${trackRange.max}°C` : ''}.`;
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_session_metric',
+          templateKey: 'event_weather',
+          values: {
+            answer,
+            event: event?.name || 'Not supplied',
+            observationCount: rows.length,
+            airTemperatureMinC: airRange.min,
+            airTemperatureMaxC: airRange.max,
+            trackTemperatureMinC: trackRange.min,
+            trackTemperatureMaxC: trackRange.max,
+            rainfallObservations: rainCount,
+          },
+          evidenceIds: unique([resolved.set?.evidenceId, dataSet.evidenceId, detail?.evidenceId]),
+        },
+        [resolved.set, dataSet, detail],
+      );
+    }
+
+    const resultSet = await helpers.get(`results:${sessionId}`);
+    const entryDrivers = new Map(
+      (resultSet?.items || []).flatMap((row) =>
+        driverNames(row)
+          .slice(0, 1)
+          .map((driver) => [row.entry?.id, driver]),
+      ),
+    );
+    const { items: profiles } = await this.profiles(helpers);
+    const driver = intent.driverName
+      ? this.findProfile(profiles, 'driver', intent.driverName)
+      : null;
+    const comparisonDriver = intent.comparisonDriverName
+      ? this.findProfile(profiles, 'driver', intent.comparisonDriverName)
+      : null;
+    if (intent.driverName && !driver)
+      return this.result(
+        { status: 'clarification', message: 'Which driver do you mean?', choices: [] },
+        [dataSet, resultSet, ...profiles],
+      );
+    if (intent.comparisonDriverName && !comparisonDriver)
+      return this.result(
+        { status: 'clarification', message: 'Which comparison driver do you mean?', choices: [] },
+        [dataSet, resultSet, ...profiles],
+      );
+    const entryForDriver = (profile) =>
+      profile
+        ? [...entryDrivers.entries()].find(([, entryDriver]) => entryDriver.id === profile.id)?.[0]
+        : null;
+    const driverEntry = entryForDriver(driver);
+    const comparisonEntry = entryForDriver(comparisonDriver);
+    if ((driver && !driverEntry) || (comparisonDriver && !comparisonEntry))
+      return unavailable(
+        `The published ${datasetKey} records for ${event?.name || 'that event'} cannot be linked to the requested driver.`,
+        `${datasetKey.toUpperCase().replaceAll('-', '_')}_ENTRANT_MAPPING_UNAVAILABLE`,
+        [resolved.set, dataSet, resultSet, detail],
+      );
+    const rowsFor = (entryId) =>
+      entryId ? dataSet.items.filter((row) => row.entryId === entryId) : dataSet.items;
+    const selectedRows = rowsFor(driverEntry);
+    const selectedComparisonRows = rowsFor(comparisonEntry);
+
+    if (datasetKey === 'stints') {
+      const compounds = (rows) =>
+        unique(
+          rows
+            .map((row) => row.compoundLabel || row.compoundClass)
+            .filter((value) => value && value !== 'unknown'),
+        );
+      const selectedCompounds = compounds(selectedRows);
+      const comparisonCompounds = compounds(selectedComparisonRows);
+      const laps = (rows) =>
+        rows.reduce(
+          (total, row) =>
+            total +
+            (Number.isFinite(row.startLap) && Number.isFinite(row.endLap)
+              ? row.endLap - row.startLap + 1
+              : 0),
+          0,
+        );
+      const selectedName = driver?.entity.displayName;
+      const answer =
+        intent.metric === 'tyre_laps'
+          ? `${selectedName || 'The published entries'} covered ${laps(selectedRows)} published tyre laps at the ${event?.name || 'event'}.`
+          : intent.metric === 'tyre_stints'
+            ? `${selectedName || 'The published entries'} recorded ${selectedRows.length} published tyre stint${selectedRows.length === 1 ? '' : 's'} at the ${event?.name || 'event'}.`
+            : driver && comparisonDriver
+              ? `${selectedName} used ${humanList(selectedCompounds) || 'no named compounds'}, compared with ${comparisonDriver.entity.displayName}'s ${humanList(comparisonCompounds) || 'no named compounds'} at the ${event?.name || 'event'}.`
+              : `${selectedName || 'The published entries'} used ${humanList(selectedCompounds) || 'no named compounds'} at the ${event?.name || 'event'}.`;
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_session_metric',
+          templateKey: 'event_tyre_strategy',
+          values: {
+            answer,
+            event: event?.name || 'Not supplied',
+            driver: selectedName || 'All linked drivers',
+            comparisonDriver: comparisonDriver?.entity.displayName || null,
+            compounds: selectedCompounds.join(', ') || 'None published',
+            comparisonCompounds: comparisonCompounds.join(', ') || 'None published',
+            stintCount: selectedRows.length,
+            tyreLaps: laps(selectedRows),
+          },
+          evidenceIds: unique([
+            resolved.set?.evidenceId,
+            dataSet.evidenceId,
+            resultSet?.evidenceId,
+            detail?.evidenceId,
+          ]),
+        },
+        [resolved.set, dataSet, resultSet, detail],
+      );
+    }
+
+    if (datasetKey === 'race-control') {
+      const textFor = (row) => `${row.category || ''} ${row.message || ''} ${row.flag || ''}`;
+      const safetyCars = dataSet.items.filter((row) =>
+        /safety car|virtual safety car/i.test(textFor(row)),
+      );
+      const redFlags = dataSet.items.filter((row) => /red flag/i.test(textFor(row)));
+      const rows =
+        intent.metric === 'safety_car_events'
+          ? safetyCars
+          : intent.metric === 'red_flag_events'
+            ? redFlags
+            : dataSet.items;
+      const highlights = dataSet.items
+        .map((row) => String(row.message || '').trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_session_metric',
+          templateKey: 'event_race_control',
+          values: {
+            answer:
+              intent.metric === 'safety_car_events'
+                ? `${safetyCars.length} safety-car event${safetyCars.length === 1 ? '' : 's'} were published for the ${event?.name || 'event'}.`
+                : intent.metric === 'red_flag_events'
+                  ? `${redFlags.length} red-flag event${redFlags.length === 1 ? '' : 's'} were published for the ${event?.name || 'event'}.`
+                  : `${dataSet.items.length} race-control message${dataSet.items.length === 1 ? '' : 's'} were published for the ${event?.name || 'event'}${highlights.length ? `, including: ${highlights.join(' | ')}` : ''}.`,
+            event: event?.name || 'Not supplied',
+            messageCount: rows.length,
+            safetyCarEvents: safetyCars.length,
+            redFlagEvents: redFlags.length,
+            highlights: highlights.join(' | ') || 'None supplied',
+          },
+          evidenceIds: unique([resolved.set?.evidenceId, dataSet.evidenceId, detail?.evidenceId]),
+        },
+        [resolved.set, dataSet, detail],
+      );
+    }
+
+    if (datasetKey === 'overtakes') {
+      const driverOvertakes = driver
+        ? dataSet.items.filter((row) => row.passingEntryId === driverEntry)
+        : dataSet.items;
+      const counts = new Map();
+      for (const row of dataSet.items) {
+        const name = entryDrivers.get(row.passingEntryId);
+        if (!name) continue;
+        counts.set(name.id, { driver: name, count: (counts.get(name.id)?.count || 0) + 1 });
+      }
+      if (driver)
+        return this.result(
+          {
+            status: 'answered',
+            resolvedIntent: 'event_session_metric',
+            templateKey: 'event_overtakes',
+            values: {
+              answer: `${driver.entity.displayName} made ${driverOvertakes.length} published overtake${driverOvertakes.length === 1 ? '' : 's'} at the ${event?.name || 'event'}.`,
+              event: event?.name || 'Not supplied',
+              driver: driver.entity.displayName,
+              count: driverOvertakes.length,
+            },
+            evidenceIds: unique([
+              resolved.set?.evidenceId,
+              dataSet.evidenceId,
+              resultSet?.evidenceId,
+              detail?.evidenceId,
+            ]),
+          },
+          [resolved.set, dataSet, resultSet, detail],
+        );
+      if (!counts.size)
+        return unavailable(
+          `Published overtake records for ${event?.name || 'that event'} cannot be linked to entrants.`,
+          'OVERTAKES_ENTRANT_MAPPING_UNAVAILABLE',
+          [resolved.set, dataSet, resultSet, detail],
+        );
+      const highest = Math.max(...[...counts.values()].map((entry) => entry.count));
+      const leaders = [...counts.values()].filter((entry) => entry.count === highest);
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_session_metric',
+          templateKey: 'event_most_overtakes',
+          values: {
+            answer: `${humanList(leaders.map((entry) => entry.driver.displayName))} made the most published overtakes at the ${event?.name || 'event'}, with ${highest} each.`,
+            event: event?.name || 'Not supplied',
+            drivers: leaders.map((entry) => entry.driver.displayName).join(', '),
+            count: highest,
+            tied: leaders.length > 1,
+          },
+          evidenceIds: unique([
+            resolved.set?.evidenceId,
+            dataSet.evidenceId,
+            resultSet?.evidenceId,
+            detail?.evidenceId,
+          ]),
+        },
+        [resolved.set, dataSet, resultSet, detail],
+      );
+    }
+
+    if (datasetKey === 'telemetry') {
+      const telemetryRows = driver ? selectedRows : dataSet.items;
+      const measured = telemetryRows
+        .filter((row) => Number.isFinite(row.speedKph))
+        .map((row) => ({ row, driver: entryDrivers.get(row.entryId) }))
+        .filter((entry) => entry.driver);
+      if (!measured.length)
+        return unavailable(
+          `Speed telemetry is not published for ${event?.name || 'that event'}.`,
+          'TELEMETRY_SPEED_NOT_PUBLISHED',
+          [resolved.set, dataSet, resultSet, detail],
+        );
+      const fastestValue = Math.max(...measured.map((entry) => entry.row.speedKph));
+      const fastest = measured.filter((entry) => entry.row.speedKph === fastestValue);
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_session_metric',
+          templateKey: 'event_fastest_speed',
+          values: {
+            answer: `${humanList(fastest.map((entry) => entry.driver.displayName))} recorded the highest published speed of ${fastestValue} km/h at the ${event?.name || 'event'}.`,
+            event: event?.name || 'Not supplied',
+            drivers: humanList(fastest.map((entry) => entry.driver.displayName)),
+            speedKph: fastestValue,
+          },
+          evidenceIds: unique([
+            resolved.set?.evidenceId,
+            dataSet.evidenceId,
+            resultSet?.evidenceId,
+            detail?.evidenceId,
+          ]),
+        },
+        [resolved.set, dataSet, resultSet, detail],
+      );
+    }
+    return unavailable(
+      'That session metric is not supported by the archive query layer yet.',
+      'SESSION_METRIC_UNSUPPORTED',
     );
   }
 

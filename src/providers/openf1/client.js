@@ -49,6 +49,7 @@ export class OpenF1 {
       ['stints', 'Stint', 'stints'],
       ['weather', 'Weather', 'weather'],
       ['race_control', 'RaceControl', 'race-control'],
+      ['overtakes', 'Overtake', 'overtakes'],
     ]) {
       try {
         const response = await this.http.get(`${path}?session_key=${key}`);
@@ -57,6 +58,11 @@ export class OpenF1 {
         const records = [];
         for (const [index, r] of response.payload.entries()) {
           const entry = entryByNumber.get(r.driver_number);
+          const passingEntry =
+            schema === 'Overtake' ? entryByNumber.get(r.overtaking_driver_number) : null;
+          const passedEntry =
+            schema === 'Overtake' ? entryByNumber.get(r.overtaken_driver_number) : null;
+          if (schema === 'Overtake' && (!passingEntry || !passedEntry)) continue;
           if (['Lap', 'PitStop', 'Stint'].includes(schema) && !entry) continue;
           const base = {
             ...shape(schema),
@@ -141,6 +147,14 @@ export class OpenF1 {
               flag: r.flag || null,
               scope: r.scope || null,
               entryIds: entry ? [entry.id] : [],
+            });
+          if (schema === 'Overtake')
+            Object.assign(base, {
+              timestamp: r.date ? new Date(r.date).toISOString() : null,
+              lap: number(r.lap_number),
+              passingEntryId: passingEntry.id,
+              passedEntryId: passedEntry.id,
+              definitionVersion: 'openf1-overtakes-v1',
             });
           records.push(base);
         }

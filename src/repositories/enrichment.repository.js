@@ -7,6 +7,7 @@ const allowedOpenF1 = new Set([
   'Stint',
   'Weather',
   'RaceControl',
+  'Overtake',
   'ProviderStatus',
 ]);
 const allowedF1db = new Set([
