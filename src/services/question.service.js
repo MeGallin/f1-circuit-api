@@ -34,6 +34,8 @@ function yearRange(text, context) {
   if (years.length >= 2) return { fromYear: Math.min(...years), toYear: Math.max(...years) };
   if (years.length === 1) return { fromYear: years[0], toYear: years[0] };
   const anchor = Number(context.year) || new Date().getUTCFullYear();
+  if (/\bthis\s+(?:year|season)\b/i.test(text)) return { fromYear: anchor, toYear: anchor };
+  if (/\blast\s+year\b/i.test(text)) return { fromYear: anchor - 1, toYear: anchor - 1 };
   if (/last\s+(?:four|4)\s+years?/i.test(text)) return { fromYear: anchor - 3, toYear: anchor };
   return { fromYear: null, toYear: null };
 }
@@ -544,7 +546,7 @@ export class QuestionService {
     const eventSets = await Promise.all(
       (await keys(eventYear ? `events:${eventYear}` : 'events:')).map(get),
     );
-    const target = normalize(eventName || text);
+    const target = normalize(eventName || text).replace(/\bg\s+p\b|\bgp\b/g, 'grand prix');
     const candidates = eventSets
       .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
       .filter(({ event }) => {

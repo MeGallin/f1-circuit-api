@@ -310,6 +310,12 @@ test('natural-language questions return database-backed answers without a model'
     .expect(200);
   assert.equal(raceControl.body.data.questionResult.values.safetyCarEvents, 1);
 
+  const abbreviatedRaceControl = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many safety cars were there at the Synthetic GP in 2024?' })
+    .expect(200);
+  assert.equal(abbreviatedRaceControl.body.data.questionResult.values.safetyCarEvents, 1);
+
   const overtakes = await request(app)
     .post('/api/v1/questions')
     .send({ text: 'Who made the most overtakes at the Synthetic Grand Prix in 2024?' })
