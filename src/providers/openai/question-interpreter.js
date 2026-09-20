@@ -53,7 +53,7 @@ const systemPrompt = [
 ].join(' ');
 
 export class OpenAIQuestionInterpreter {
-  constructor({ apiKey, model = 'gpt-5.6-luna', reasoningEffort = 'none', timeoutMs = 10000 }) {
+  constructor({ apiKey, model = 'gpt-5.6-luna', reasoningEffort = 'max', timeoutMs = 10000 }) {
     this.client = new OpenAI({ apiKey, timeout: timeoutMs, maxRetries: 1 });
     this.model = model;
     this.reasoningEffort = reasoningEffort;

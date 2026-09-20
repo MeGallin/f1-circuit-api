@@ -17,7 +17,7 @@ The deterministic path works with no model credentials. To enable the optional i
 OPENAI_ENABLED=true
 OPENAI_API_KEY=replace-with-a-server-side-key
 OPENAI_MODEL=gpt-5.6-luna
-OPENAI_REASONING_EFFORT=none
+OPENAI_REASONING_EFFORT=max
 OPENAI_TIMEOUT_MS=10000
 ```
 
