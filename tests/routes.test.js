@@ -148,4 +148,13 @@ test('natural-language questions return database-backed answers without a model'
     'Synthetic Grand Prix',
   );
   assert.match(raceWinsWithFirst.body.data.questionResult.values.answer, /first win was/);
+
+  const comparedWins = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many races has Example One won in his career compared to Example Two?' })
+    .expect(200);
+  assert.equal(comparedWins.body.data.questionResult.resolvedIntent, 'driver_race_wins_comparison');
+  assert.equal(comparedWins.body.data.questionResult.values.count, 1);
+  assert.equal(comparedWins.body.data.questionResult.values.comparisonCount, 0);
+  assert.match(comparedWins.body.data.questionResult.values.answer, /compared with Example Two's 0/);
 });

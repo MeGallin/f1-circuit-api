@@ -190,9 +190,34 @@ export class QuestionService {
     }
     if (/\bhow\s+many\b/.test(lower) && /\b(win|won|victor(?:y|ies))\b/.test(lower)) {
       const { items } = await this.profiles(helpers);
-      const driver = items.find(
+      const drivers = items
+        .filter(
+          (profile) =>
+            profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+        )
+        .sort(
+          (a, b) =>
+            lower.indexOf(normalize(a.entity.displayName)) -
+            lower.indexOf(normalize(b.entity.displayName)),
+        );
+      if (
+        drivers.length >= 2 &&
+        /\b(compared\s+to|versus|vs|than)\b/.test(lower)
+      )
+        return this.executeIntent(
+          {
+            intent: 'driver_race_wins_comparison',
+            driverName: drivers[0].entity.displayName,
+            comparisonDriverName: drivers[1].entity.displayName,
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+      const driver = drivers.find(
         (profile) =>
-          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+          lower.includes(normalize(profile.entity.displayName)),
       );
       if (driver)
         return this.executeIntent(
@@ -234,6 +259,8 @@ export class QuestionService {
       return this.driverLastWin(intent, context, { get, keys });
     if (intent?.intent === 'driver_race_wins')
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
+    if (intent?.intent === 'driver_race_wins_comparison')
+      return this.driverRaceWinsComparison(intent, context, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -544,6 +571,23 @@ export class QuestionService {
     );
   }
 
+  collectDriverWins(driverId, resultSets) {
+    const winsByEvent = new Map();
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !row.sessionId?.endsWith(':race') ||
+          row.position !== 1 ||
+          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driverId)
+        )
+          continue;
+        const eventId = sessionEventId(row.sessionId);
+        if (eventId && !winsByEvent.has(eventId)) winsByEvent.set(eventId, set);
+      }
+    }
+    return winsByEvent;
+  }
+
   async driverRaceWins(intent, _context, { get, keys }, originalText = '') {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = this.findProfile(items, 'driver', intent.driverName);
@@ -558,19 +602,7 @@ export class QuestionService {
       );
 
     const resultSets = await Promise.all((await keys('results:')).map(get));
-    const winsByEvent = new Map();
-    for (const set of resultSets) {
-      for (const row of set?.items || []) {
-        if (
-          !row.sessionId?.endsWith(':race') ||
-          row.position !== 1 ||
-          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driver.id)
-        )
-          continue;
-        const eventId = sessionEventId(row.sessionId);
-        if (eventId && !winsByEvent.has(eventId)) winsByEvent.set(eventId, set);
-      }
-    }
+    const winsByEvent = this.collectDriverWins(driver.id, resultSets);
 
     const count = winsByEvent.size;
     const wantsFirst = /\bfirst\b/.test(normalize(originalText || intent.originalText));
@@ -625,6 +657,47 @@ export class QuestionService {
         ]).slice(0, 12),
       },
       [...sets, ...resultSets, ...details],
+    );
+  }
+
+  async driverRaceWinsComparison(intent, _context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = this.findProfile(items, 'driver', intent.driverName);
+    const comparisonDriver = this.findProfile(items, 'driver', intent.comparisonDriverName);
+    if (!driver || !comparisonDriver)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Please identify both drivers.',
+          choices: [],
+        },
+        sets,
+      );
+
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const driverWins = this.collectDriverWins(driver.id, resultSets);
+    const comparisonWins = this.collectDriverWins(comparisonDriver.id, resultSets);
+    const driverCount = driverWins.size;
+    const comparisonCount = comparisonWins.size;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_race_wins_comparison',
+        templateKey: 'driver_race_wins_comparison',
+        values: {
+          answer: `${driver.entity.displayName} has won ${driverCount} race${driverCount === 1 ? '' : 's'}, compared with ${comparisonDriver.entity.displayName}'s ${comparisonCount}.`,
+          driver: driver.entity.displayName,
+          count: driverCount,
+          comparisonDriver: comparisonDriver.entity.displayName,
+          comparisonCount,
+        },
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          ...Array.from(driverWins.values(), (set) => set?.evidenceId),
+          ...Array.from(comparisonWins.values(), (set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets],
     );
   }
 
