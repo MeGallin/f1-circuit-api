@@ -532,6 +532,9 @@ export class QuestionService {
         { status: 'clarification', message: 'Which circuit do you mean?', choices: [] },
         profileSets,
       );
+    const circuitSets = profileSets.filter((set) =>
+      (set.items || []).some((profile) => profile.id === circuit.id),
+    );
     const eventSets = await Promise.all((await keys('events:')).map(get));
     const circuitTargets = unique(
       [circuit.entity.displayName, circuit.entity.id, ...(circuit.aliases || [])].map(normalize),
@@ -567,7 +570,7 @@ export class QuestionService {
     const limit = Math.min(Math.max(Number(intent.limit) || 1, 1), 10);
     const selected = winners.slice(0, limit);
     const evidenceSets = [
-      ...profileSets,
+      ...circuitSets,
       ...selected.flatMap(({ set, resultSet }) => [set, resultSet].filter(Boolean)),
     ];
     if (!selected.length)
@@ -1027,6 +1030,9 @@ export class QuestionService {
         },
         profileSets,
       );
+    const circuitSets = profileSets.filter((set) =>
+      (set.items || []).some((profile) => profile.id === circuit.id),
+    );
 
     const currentYear = Number(context.currentYear) || new Date().getUTCFullYear();
     const primary =
@@ -1122,7 +1128,7 @@ export class QuestionService {
           : null,
     ].filter(Boolean);
     const evidenceSets = [
-      ...profileSets,
+      ...circuitSets,
       ...records.map(({ set }) => set),
       ...records.map(({ weather }) => weather).filter(Boolean),
     ];
