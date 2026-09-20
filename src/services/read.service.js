@@ -32,10 +32,11 @@ const normalizeStandingSet = (set) =>
     : set;
 
 export class ReadService {
-  constructor(repository) {
+  constructor(repository, questionService = null) {
     this.repository = repository;
+    this.questionService = questionService;
   }
-  async read(operation, { params: p, query: q }) {
+  async read(operation, { params: p, query: q, body }) {
     let cursor = null;
     if (q.cursor) {
       try {
@@ -348,21 +349,26 @@ export class ReadService {
           },
         ],
       };
-    } else if (op === 'askQuestion')
-      set = {
-        items: [
-          {
-            status: 'unavailable',
-            message: 'The optional question layer is outside this API build.',
-            reasonCode: 'FEATURE_DISABLED',
-          },
-        ],
-        coverage: 'not-applicable',
-        verification: 'unassessed',
-        provenance: { sources: [] },
-        warnings: [],
-      };
-    else if (op === 'getRecords' || op === 'getComparison') {
+    } else if (op === 'askQuestion') {
+      if (!this.questionService)
+        set = {
+          items: [
+            {
+              status: 'unavailable',
+              message: 'The optional question layer is outside this API build.',
+              reasonCode: 'FEATURE_DISABLED',
+            },
+          ],
+          coverage: 'not-applicable',
+          verification: 'unassessed',
+          provenance: { sources: [] },
+          warnings: [],
+        };
+      else {
+        const question = await this.questionService.answer(body, { snapshot, get, keys });
+        set = { ...question.dataset, items: [question.result] };
+      }
+    } else if (op === 'getRecords' || op === 'getComparison') {
       const kind = op === 'getRecords' ? q.scope : q.kind;
       if (kind === 'circuit' && q.metric === 'points')
         throw invalid('Championship points cannot be attributed to a circuit.');

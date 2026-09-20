@@ -9,7 +9,7 @@ const logger = createLogger(config.logLevel);
 const pool = createPool(config);
 pool.on('error', () => logger.error('Idle database connection failed.'));
 const repository = new PublicationRepository(pool);
-const app = createApp({ repository, config, logger, router: createRouter(repository) });
+const app = createApp({ repository, config, logger, router: createRouter(repository, { config }) });
 const server = app.listen(config.port, () => logger.info({ port: config.port }, 'API listening'));
 let stopping = false;
 async function stop() {

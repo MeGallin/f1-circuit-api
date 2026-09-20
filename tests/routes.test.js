@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { operations, validateSchema } from '../src/schemas/contract.js';
-import { appFixture, exampleRequest, sessionId } from './helpers.js';
+import { appFixture, eventId, exampleRequest, sessionId } from './helpers.js';
 test('every documented operation returns its schema with explicit data/coverage', async () => {
   const { app, repository } = appFixture();
   for (const operation of operations) {
@@ -78,4 +78,32 @@ test('search matches comma-separated terms while preserving record type filters'
     events.body.data.items.map((item) => item.entity.displayName),
     ['Synthetic Grand Prix'],
   );
+});
+
+test('natural-language questions return database-backed answers without a model', async () => {
+  const { app } = appFixture();
+  const winner = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'Who won?',
+      context: {
+        year: 2024,
+        eventId,
+        sessionId,
+        driverId: null,
+        constructorId: null,
+      },
+    })
+    .expect(200);
+  assert.equal(winner.body.data.questionResult.status, 'answered');
+  assert.match(winner.body.data.questionResult.values.answer, /Example One won/);
+  assert.ok(winner.body.data.questionResult.evidenceIds.length);
+
+  const count = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many race starts did Example One make for Example Team in 2024?' })
+    .expect(200);
+  assert.equal(count.body.data.questionResult.status, 'answered');
+  assert.equal(count.body.data.questionResult.values.count, 1);
+  assert.match(count.body.data.questionResult.values.answer, /1 race start/);
 });

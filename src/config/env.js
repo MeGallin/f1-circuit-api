@@ -35,6 +35,10 @@ export function loadConfig(env = process.env) {
     logLevel: env.LOG_LEVEL || 'info',
     production: env.NODE_ENV === 'production',
     openf1Enabled: env.OPENF1_ENABLED === 'true',
+    openaiEnabled: env.OPENAI_ENABLED === 'true',
+    openaiApiKey: env.OPENAI_API_KEY || null,
+    openaiModel: env.OPENAI_MODEL || 'gpt-4o-mini',
+    openaiTimeoutMs: Number(env.OPENAI_TIMEOUT_MS || 10000),
     poolSize: 5,
   };
 }

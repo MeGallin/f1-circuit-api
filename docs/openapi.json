@@ -8143,7 +8143,7 @@
       "post": {
         "operationId": "askQuestion",
         "summary": "ask Question",
-        "description": "Read-only deterministic question interpretation. No raw question retention by default. Disabled feature returns 200 unavailable. No model-supplied factual prose. Unknown query parameters are rejected. Missing applicable datasets return a successful envelope with explicit coverage. All supplied filter ranges must be ordered.",
+        "description": "Read-only natural-language interpretation over the published archive. Deterministic templates run first; an optional OpenAI interpreter may classify unresolved wording into a strict intent only. Facts, SQL, evidence and final answer text are produced by the application from its normalized database snapshot, never by the model. No raw question retention by default. Unknown query parameters are rejected. Missing applicable datasets return a successful envelope with explicit coverage. All supplied filter ranges must be ordered.",
         "parameters": [],
         "responses": {
           "200": {
