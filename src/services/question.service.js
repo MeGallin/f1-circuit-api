@@ -63,6 +63,7 @@ export class QuestionService {
         ? new OpenAIQuestionInterpreter({
             apiKey: config.openaiApiKey,
             model: config.openaiModel,
+            reasoningEffort: config.openaiReasoningEffort,
             timeoutMs: config.openaiTimeoutMs,
           })
         : null;

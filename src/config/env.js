@@ -38,6 +38,7 @@ export function loadConfig(env = process.env) {
     openaiEnabled: env.OPENAI_ENABLED === 'true',
     openaiApiKey: env.OPENAI_API_KEY || null,
     openaiModel: env.OPENAI_MODEL || 'gpt-5.6-luna',
+    openaiReasoningEffort: env.OPENAI_REASONING_EFFORT || 'none',
     openaiTimeoutMs: Number(env.OPENAI_TIMEOUT_MS || 10000),
     poolSize: 5,
   };
