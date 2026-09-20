@@ -670,8 +670,9 @@ export class QuestionService {
         templateKey: countryScope ? 'country_race_winners' : 'circuit_race_winners',
         values: {
           answer,
-          circuit: countryScope ? null : circuits[0].entity.displayName,
-          country: countryScope ? label : null,
+          ...(countryScope
+            ? { country: label }
+            : { circuit: circuits[0].entity.displayName }),
           count: selected.length,
           winners: lines.join('; '),
         },
