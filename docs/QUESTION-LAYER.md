@@ -4,7 +4,7 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 
 ## Resolution order
 
-1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event-winner questions with an event context, last-win questions and supported driver/constructor counts.
+1. Deterministic templates handle known wording without an AI provider. This includes archive searches, event winners, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, driver history, driver/constructor counts, and separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ.
 2. If deterministic interpretation cannot resolve the wording, the optional OpenAI JavaScript SDK adapter can classify the question into a strict JSON intent.
 3. The backend validates and executes that intent against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.
 4. Unsupported, ambiguous, unavailable and partial states are returned explicitly so the client can explain what happened without inventing an answer.
@@ -28,3 +28,11 @@ Never place `OPENAI_API_KEY` in the React client, commit it to Git, or expose it
 Successful responses include `data.questionResult` and the normal archive `meta` envelope. Answered results include a deterministic natural-language `values.answer`, structured values, and any available evidence IDs. The frontend renders the answer and links to evidence; it does not generate factual text.
 
 The endpoint does not call Jolpica, F1DB or OpenF1 at question time. Those providers feed the server-side import and reconciliation pipeline; questions query the resulting normalized publication snapshot.
+
+## Metric semantics and edge cases
+
+The question layer counts unique canonical race events. A race start includes a published race entry that started, even if the driver later retired or was disqualified; DNS, DNQ and withdrawn entries are excluded from starts. “Retirements”, “disqualifications”, “did not start” and “did not qualify” are separate metrics. A bare “DNF” question asks for clarification instead of silently choosing one of them.
+
+Race, sprint, qualifying and sprint qualifying are different sessions. Race wins, podiums and fastest laps use the race session; pole uses qualifying; sprint results are not silently included in race totals. Pit-stop answers aggregate published pit-stop rows by the linked race entry, preserve ties, and state whether a fastest duration is stationary or lane duration.
+
+The complete acceptance matrix, including examples for compound questions, current seasons, partial coverage, ties, missing fields, source conflicts and unsupported datasets, is maintained in `docs/QUESTION-COVERAGE.md`.

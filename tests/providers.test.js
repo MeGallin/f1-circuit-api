@@ -32,6 +32,14 @@ test('normalization preserves fractional points, unknown times and source-only q
   assert.equal(result.points, '12.5');
   assert.equal(result.classified, null);
   assert.deepEqual(classification(bundle.race.Results[1], 'test').gap, { kind: 'laps', laps: 1 });
+  assert.equal(
+    classification({ ...bundle.race.Results[0], status: 'Did not start' }, 'test').status,
+    'not-started',
+  );
+  assert.equal(
+    classification({ ...bundle.race.Results[0], status: 'Did not qualify' }, 'test').status,
+    'not-classified',
+  );
 });
 test('reconciliation distinguishes shared lineage, independent agreement and conflicts', () => {
   const a = { value: '12.50', unit: 'points', lineage: 'a' },

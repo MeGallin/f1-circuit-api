@@ -2,22 +2,22 @@
 
 This delivery implements an API foundation and a historical vertical slice. All 35 contract operations are registered and schema checked; **route coverage is not equivalent to full historical dataset coverage**. The remaining product breadth is visible through unavailable states rather than fabricated responses.
 
-| Capability                                              | Current implementation                                                                                                     |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Seasons/calendar                                        | Imported-season index and selected-year calendar; date precision preserved                                                 |
-| Event/session identity                                  | Year/round aliases, retained event IDs, race/qualifying/sprint/practice identities; venue changes require reviewed mapping |
-| Results/fastest laps                                    | Race and sprint results, statuses, decimal points, available timing and fastest-lap fields                                 |
-| Qualifying                                              | Jolpica phase values and F1DB equivalents; nonstandard historical formats need further normalization                       |
-| Laps/pits                                               | Jolpica pagination, durations and entrant mapping; OpenF1 sectors/speeds, lane and stationary pit times                    |
-| Stints/weather/race control                             | OpenF1 historical adapter with explicit session mapping; unavailable fields remain null                                    |
-| Standings                                               | Published round snapshots and progression; earlier-round imports do not regress latest standings                           |
-| Profiles/history/search                                 | Imported driver, constructor and circuit identities, supplied biography/location and scoped histories                      |
-| Evidence/source status                                  | Selected assertions, field conflicts, retrieval metadata, provider status and import coverage                              |
-| Impact/records/comparisons                              | Unavailable until historical scoring/credit and before/after snapshots are qualified; no modern-rule recomputation         |
-| Penalties                                               | Contract exists; no automatic inference from race-control prose                                                            |
-| Telemetry/positions/intervals/locations/overtakes/radio | Contract boundary exists; high-volume/media ingestion remains follow-up work                                               |
-| Circuit layout assets                                   | Contract exists; asset permission/identity verification remains a release gate                                             |
-| Questions                                               | Disabled: optional natural-language processing is outside this build                                                       |
+| Capability                                              | Current implementation                                                                                                                 |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Seasons/calendar                                        | Imported-season index and selected-year calendar; date precision preserved                                                             |
+| Event/session identity                                  | Year/round aliases, retained event IDs, race/qualifying/sprint/practice identities; venue changes require reviewed mapping             |
+| Results/fastest laps                                    | Race and sprint results, statuses, decimal points, available timing and fastest-lap fields                                             |
+| Qualifying                                              | Jolpica phase values and F1DB equivalents; nonstandard historical formats need further normalization                                   |
+| Laps/pits                                               | Jolpica pagination, durations and entrant mapping; OpenF1 sectors/speeds, lane and stationary pit times                                |
+| Stints/weather/race control                             | OpenF1 historical adapter with explicit session mapping; unavailable fields remain null                                                |
+| Standings                                               | Published round snapshots and progression; earlier-round imports do not regress latest standings                                       |
+| Profiles/history/search                                 | Imported driver, constructor and circuit identities, supplied biography/location and scoped histories                                  |
+| Evidence/source status                                  | Selected assertions, field conflicts, retrieval metadata, provider status and import coverage                                          |
+| Impact/records/comparisons                              | Unavailable until historical scoring/credit and before/after snapshots are qualified; no modern-rule recomputation                     |
+| Penalties                                               | Contract exists; no automatic inference from race-control prose                                                                        |
+| Telemetry/positions/intervals/locations/overtakes/radio | Contract boundary exists; high-volume/media ingestion remains follow-up work                                                           |
+| Circuit layout assets                                   | Contract exists; asset permission/identity verification remains a release gate                                                         |
+| Questions                                               | Deterministic database-backed intents plus optional closed-schema natural-language classification; unsupported metrics remain explicit |
 
 F1DB supports more than this adapter currently projects. The full imported source payload is retained with checksum/version, but retaining a payload does not mean every field is exposed. Shared-drive events stop for reviewed credit mapping. Practice results, nonstandard qualifying and historical scoring require follow-up work. These are vertical-slice limits, not removal of product requirements.
 

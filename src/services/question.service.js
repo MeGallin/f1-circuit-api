@@ -18,6 +18,13 @@ const normalize = (value) =>
 
 const unique = (items) => [...new Set(items.filter(Boolean))];
 
+function humanList(items) {
+  const values = unique(items);
+  if (values.length < 2) return values[0] || 'Not supplied';
+  if (values.length === 2) return values.join(' and ');
+  return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
+}
+
 function contextWith(overrides = {}) {
   return { ...emptyContext, ...overrides };
 }
@@ -42,6 +49,36 @@ function yearFromEventId(eventId) {
   return match ? Number(match[1]) : null;
 }
 
+function raceSessionId(eventId) {
+  return eventId ? `session:${eventId}:race` : null;
+}
+
+function qualifyingSessionId(eventId) {
+  return eventId ? `session:${eventId}:qualifying` : null;
+}
+
+function isRaceRow(row) {
+  return row?.sessionId?.endsWith(':race');
+}
+
+function isRaceStart(row) {
+  return isRaceRow(row) && !['not-started', 'not-classified', 'withdrawn'].includes(row.status);
+}
+
+function driverNames(row) {
+  return row?.entry?.drivers || [];
+}
+
+function distinctEventRows(rows, predicate) {
+  const events = new Map();
+  for (const row of rows) {
+    if (!predicate(row)) continue;
+    const eventId = sessionEventId(row.sessionId);
+    if (eventId && !events.has(eventId)) events.set(eventId, row);
+  }
+  return events;
+}
+
 function formatDate(value) {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00Z`);
@@ -53,6 +90,11 @@ function formatDate(value) {
         year: 'numeric',
         timeZone: 'UTC',
       }).format(date);
+}
+
+function formatDuration(milliseconds) {
+  if (!Number.isFinite(milliseconds)) return 'Not supplied';
+  return `${(milliseconds / 1000).toFixed(3)} seconds`;
 }
 
 export class QuestionService {
@@ -188,6 +230,97 @@ export class QuestionService {
           text,
         );
     }
+    if (/\bpit\s+stops?\b/.test(lower)) {
+      const metric = /\b(fastest|quickest)\b/.test(lower)
+        ? 'fastest_pit_stop'
+        : /\b(most|highest|more)\b/.test(lower)
+          ? 'most_pit_stops'
+          : 'pit_stops';
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      return this.executeIntent(
+        {
+          intent: 'event_pit_stops',
+          eventName: null,
+          driverName: driver?.entity.displayName || null,
+          metric,
+          originalText: text,
+        },
+        context,
+        helpers,
+        text,
+      );
+    }
+    if (/\b(podium|top\s+(?:three|3))\b/.test(lower) && !/\bhow\s+many\b/.test(lower))
+      return this.executeIntent(
+        { intent: 'event_podium', eventName: null, originalText: text },
+        context,
+        helpers,
+        text,
+      );
+    if (/\bfastest\s+lap\b/.test(lower) && !/\bhow\s+many\b/.test(lower))
+      return this.executeIntent(
+        { intent: 'event_fastest_lap', eventName: null, originalText: text },
+        context,
+        helpers,
+        text,
+      );
+    if (/\bpole(?:\s+position)?\b/.test(lower) && !/\bhow\s+many\b/.test(lower))
+      return this.executeIntent(
+        { intent: 'event_pole', eventName: null, originalText: text },
+        context,
+        helpers,
+        text,
+      );
+    if (/\bdnfs?\b/.test(lower))
+      return this.result(
+        {
+          status: 'clarification',
+          message:
+            'The archive keeps retirements, disqualifications and non-starts separate. Do you mean retirements, disqualifications or did-not-start entries?',
+          choices: [],
+        },
+        [],
+      );
+    if (/\b(how many|number of|count of)\b/.test(lower)) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      const metric = /\bpodiums?\b/.test(lower)
+        ? 'podiums'
+        : /\bpoles?\b|\bpole positions?\b/.test(lower)
+          ? 'poles'
+          : /\bfastest laps?\b/.test(lower)
+            ? 'fastest_laps'
+            : /\bretirements?\b|\bretired\b/.test(lower)
+              ? 'retirements'
+              : /\bdisqualif/.test(lower)
+                ? 'disqualifications'
+                : /\bdns\b|did not start/.test(lower)
+                  ? 'did_not_start'
+                  : /\bdnq\b|did not qualify/.test(lower)
+                    ? 'did_not_qualify'
+                    : /\brace starts?\b|\braces?\s+started\b/.test(lower)
+                      ? 'race_starts'
+                      : null;
+      if (driver && metric)
+        return this.executeIntent(
+          {
+            intent: 'driver_stat',
+            driverName: driver.entity.displayName,
+            metric,
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+    }
     if (/\bhow\s+many\b/.test(lower) && /\b(win|won|victor(?:y|ies))\b/.test(lower)) {
       const { items } = await this.profiles(helpers);
       const drivers = items
@@ -200,10 +333,7 @@ export class QuestionService {
             lower.indexOf(normalize(a.entity.displayName)) -
             lower.indexOf(normalize(b.entity.displayName)),
         );
-      if (
-        drivers.length >= 2 &&
-        /\b(compared\s+to|versus|vs|than)\b/.test(lower)
-      )
+      if (drivers.length >= 2 && /\b(compared\s+to|versus|vs|than)\b/.test(lower))
         return this.executeIntent(
           {
             intent: 'driver_race_wins_comparison',
@@ -215,9 +345,8 @@ export class QuestionService {
           helpers,
           text,
         );
-      const driver = drivers.find(
-        (profile) =>
-          lower.includes(normalize(profile.entity.displayName)),
+      const driver = drivers.find((profile) =>
+        lower.includes(normalize(profile.entity.displayName)),
       );
       if (driver)
         return this.executeIntent(
@@ -261,6 +390,16 @@ export class QuestionService {
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'driver_race_wins_comparison')
       return this.driverRaceWinsComparison(intent, context, { get, keys });
+    if (intent?.intent === 'driver_stat')
+      return this.driverStat(intent, context, { get, keys }, originalText);
+    if (intent?.intent === 'event_podium')
+      return this.eventPodium(intent.eventName, context, originalText, { get, keys });
+    if (intent?.intent === 'event_pole')
+      return this.eventPole(intent.eventName, context, originalText, { get, keys });
+    if (intent?.intent === 'event_fastest_lap')
+      return this.eventFastestLap(intent.eventName, context, originalText, { get, keys });
+    if (intent?.intent === 'event_pit_stops')
+      return this.eventPitStops(intent, context, originalText, { get, keys });
     return this.result(
       {
         status: 'unsupported',
@@ -352,7 +491,7 @@ export class QuestionService {
     const candidates = eventSets
       .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
       .filter(({ event }) => {
-        const value = normalize(`${event.name} ${event.id}`);
+        const value = normalize(`${event.name} ${event.id} ${event.circuit?.displayName || ''}`);
         return target && (value.includes(target) || target.includes(normalize(event.name)));
       });
     if (candidates.length === 1) return { eventId: candidates[0].event.id, set: candidates[0].set };
@@ -404,6 +543,390 @@ export class QuestionService {
     );
   }
 
+  async eventPodium(eventName, context, text, helpers) {
+    const resolved = await this.resolveEvent(eventName, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+    const resultSet = await helpers.get(`results:${raceSessionId(resolved.eventId)}`);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    const rows = (resultSet?.items || [])
+      .filter((row) => row.position >= 1 && row.position <= 3)
+      .sort((a, b) => a.position - b.position);
+    if (!rows.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `A published podium is not available for ${event?.name || 'that event'}.`,
+          reasonCode: 'PODIUM_NOT_PUBLISHED',
+        },
+        [resolved.set, resultSet, detail],
+      );
+    const podium = rows.flatMap((row) =>
+      driverNames(row)
+        .slice(0, 1)
+        .map((driver) => ({
+          position: row.position,
+          driver: driver.displayName,
+          constructor: row.entry?.constructor?.displayName || 'Not supplied',
+        })),
+    );
+    const missingPositions = [1, 2, 3].filter(
+      (position) => !podium.some((entry) => entry.position === position),
+    );
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_podium',
+        templateKey: 'event_podium',
+        values: {
+          answer: `${event?.name || 'The event'} podium: ${podium
+            .map((entry) => `P${entry.position} ${entry.driver}`)
+            .join(
+              ', ',
+            )}.${missingPositions.length ? ` Positions not published: ${missingPositions.join(', ')}.` : ''}`,
+          event: event?.name || 'Not supplied',
+          year: event?.year || null,
+          podium: podium.map((entry) => `P${entry.position} ${entry.driver}`).join('; '),
+          missingPositions: missingPositions.join(', ') || 'None',
+        },
+        evidenceIds: unique([resolved.set?.evidenceId, resultSet?.evidenceId, detail?.evidenceId]),
+      },
+      [resolved.set, resultSet, detail],
+    );
+  }
+
+  async eventPole(eventName, context, text, helpers) {
+    const resolved = await this.resolveEvent(eventName, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+    const qualifyingSet = await helpers.get(`qualifying:${qualifyingSessionId(resolved.eventId)}`);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    const rows = (qualifyingSet?.items || []).filter((row) => row.position === 1);
+    if (!rows.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `Qualifying pole is not published for ${event?.name || 'that event'}.`,
+          reasonCode: 'QUALIFYING_NOT_PUBLISHED',
+        },
+        [resolved.set, qualifyingSet, detail],
+      );
+    const drivers = unique(
+      rows.flatMap((row) => driverNames(row).map((driver) => driver.displayName)),
+    );
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_pole',
+        templateKey: 'event_pole',
+        values: {
+          answer: `${humanList(drivers)} took pole for the ${event?.name || 'event'}.`,
+          event: event?.name || 'Not supplied',
+          year: event?.year || null,
+          drivers: drivers.join(', '),
+        },
+        evidenceIds: unique([
+          resolved.set?.evidenceId,
+          qualifyingSet?.evidenceId,
+          detail?.evidenceId,
+        ]),
+      },
+      [resolved.set, qualifyingSet, detail],
+    );
+  }
+
+  async eventFastestLap(eventName, context, text, helpers) {
+    const resolved = await this.resolveEvent(eventName, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+    const resultSet = await helpers.get(`results:${raceSessionId(resolved.eventId)}`);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    const rows = (resultSet?.items || []).filter((row) => row.fastestLap?.rank === 1);
+    if (!rows.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `A published fastest lap is not available for ${event?.name || 'that event'}.`,
+          reasonCode: 'FASTEST_LAP_NOT_PUBLISHED',
+        },
+        [resolved.set, resultSet, detail],
+      );
+    const drivers = unique(
+      rows.flatMap((row) => driverNames(row).map((driver) => driver.displayName)),
+    );
+    const lap = rows[0].fastestLap;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_fastest_lap',
+        templateKey: 'event_fastest_lap',
+        values: {
+          answer: `${humanList(drivers)} set the fastest lap at the ${event?.name || 'event'}${lap.lapNumber ? ` on lap ${lap.lapNumber}` : ''}.`,
+          event: event?.name || 'Not supplied',
+          year: event?.year || null,
+          drivers: drivers.join(', '),
+          lapNumber: lap.lapNumber,
+          durationMs: lap.durationMs,
+        },
+        evidenceIds: unique([resolved.set?.evidenceId, resultSet?.evidenceId, detail?.evidenceId]),
+      },
+      [resolved.set, resultSet, detail],
+    );
+  }
+
+  async eventPitStops(intent, context, text, helpers) {
+    const resolved = await this.resolveEvent(intent.eventName, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+    const pitSet = await helpers.get(`pit-stops:${raceSessionId(resolved.eventId)}`);
+    const resultSet = await helpers.get(`results:${raceSessionId(resolved.eventId)}`);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    if (!pitSet || !pitSet.items?.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `Pit-stop records are not published for ${event?.name || 'that event'}.`,
+          reasonCode: 'PIT_STOPS_NOT_PUBLISHED',
+        },
+        [resolved.set, pitSet, resultSet, detail],
+      );
+    const driverByEntry = new Map(
+      (resultSet?.items || []).flatMap((row) =>
+        driverNames(row)
+          .slice(0, 1)
+          .map((driver) => [row.entry?.id, driver]),
+      ),
+    );
+    const stops = pitSet.items
+      .map((stop) => ({ ...stop, driver: driverByEntry.get(stop.entryId) }))
+      .filter((stop) => stop.driver);
+    if (!stops.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The pit-stop records for ${event?.name || 'that event'} cannot be linked to published drivers.`,
+          reasonCode: 'PIT_STOP_ENTRANT_MAPPING_UNAVAILABLE',
+        },
+        [resolved.set, pitSet, resultSet, detail],
+      );
+    const metric = intent.metric || 'most_pit_stops';
+    if (metric === 'fastest_pit_stop') {
+      const stationary = stops.filter((stop) => Number.isFinite(stop.stationaryDurationMs));
+      const durationKey = stationary.length ? 'stationaryDurationMs' : 'laneDurationMs';
+      const measured = stops.filter((stop) => Number.isFinite(stop[durationKey]));
+      if (!measured.length)
+        return this.result(
+          {
+            status: 'unavailable',
+            message: `Pit-stop duration is not published for ${event?.name || 'that event'}.`,
+            reasonCode: 'PIT_STOP_DURATION_NOT_PUBLISHED',
+          },
+          [resolved.set, pitSet, resultSet, detail],
+        );
+      const fastestValue = Math.min(...measured.map((stop) => stop[durationKey]));
+      const fastest = measured.filter((stop) => stop[durationKey] === fastestValue);
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_pit_stops',
+          templateKey: 'event_fastest_pit_stop',
+          values: {
+            answer: `The fastest published pit stop at the ${event?.name || 'event'} was ${formatDuration(fastestValue)} (${durationKey === 'stationaryDurationMs' ? 'stationary' : 'lane'} duration), by ${humanList(fastest.map((stop) => stop.driver.displayName))}.`,
+            event: event?.name || 'Not supplied',
+            drivers: unique(fastest.map((stop) => stop.driver.displayName)).join(', '),
+            durationMs: fastestValue,
+            durationType: durationKey === 'stationaryDurationMs' ? 'stationary' : 'lane',
+          },
+          evidenceIds: unique([
+            resolved.set?.evidenceId,
+            pitSet.evidenceId,
+            resultSet?.evidenceId,
+            detail?.evidenceId,
+          ]),
+        },
+        [resolved.set, pitSet, resultSet, detail],
+      );
+    }
+    const counts = new Map();
+    for (const stop of stops) {
+      const current = counts.get(stop.driver.id) || { driver: stop.driver, count: 0 };
+      current.count += 1;
+      counts.set(stop.driver.id, current);
+    }
+    const requestedDriver = intent.driverName
+      ? [...counts.values()].find(
+          (entry) => normalize(entry.driver.displayName) === normalize(intent.driverName),
+        )
+      : null;
+    if (metric === 'pit_stops' && intent.driverName && !requestedDriver)
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_pit_stops',
+          templateKey: 'event_pit_stops',
+          values: {
+            answer: `${intent.driverName} made 0 published pit stops at the ${event?.name || 'event'}.`,
+            event: event?.name || 'Not supplied',
+            driver: intent.driverName,
+            count: 0,
+          },
+          evidenceIds: unique([
+            resolved.set?.evidenceId,
+            pitSet.evidenceId,
+            resultSet?.evidenceId,
+            detail?.evidenceId,
+          ]),
+        },
+        [resolved.set, pitSet, resultSet, detail],
+      );
+    const highest = Math.max(...[...counts.values()].map((entry) => entry.count));
+    const leaders = [...counts.values()].filter((entry) => entry.count === highest);
+    const selected = requestedDriver ? [requestedDriver] : leaders;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_pit_stops',
+        templateKey: requestedDriver ? 'event_pit_stops' : 'event_most_pit_stops',
+        values: {
+          answer: requestedDriver
+            ? `${requestedDriver.driver.displayName} made ${requestedDriver.count} published pit stop${requestedDriver.count === 1 ? '' : 's'} at the ${event?.name || 'event'}.`
+            : `${humanList(selected.map((entry) => entry.driver.displayName))} made the most published pit stops at the ${event?.name || 'event'}, with ${highest} each.`,
+          event: event?.name || 'Not supplied',
+          drivers: selected.map((entry) => entry.driver.displayName).join(', '),
+          count: requestedDriver ? requestedDriver.count : highest,
+          tied: selected.length > 1,
+        },
+        evidenceIds: unique([
+          resolved.set?.evidenceId,
+          pitSet.evidenceId,
+          resultSet?.evidenceId,
+          detail?.evidenceId,
+        ]),
+      },
+      [resolved.set, pitSet, resultSet, detail],
+    );
+  }
+
+  async driverStat(intent, context, { get, keys }, originalText = '') {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        { status: 'clarification', message: 'Which driver do you mean?', choices: [] },
+        sets,
+      );
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(originalText, context);
+    const inRange = (row) => {
+      const year = yearFromEventId(sessionEventId(row.sessionId));
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+    };
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const qualifyingSets = await Promise.all((await keys('qualifying:')).map(get));
+    const driverRows = resultSets.flatMap((set) =>
+      (set?.items || []).filter((row) => inRange(row)),
+    );
+    const qualifyingRows = qualifyingSets.flatMap((set) =>
+      (set?.items || []).filter((row) => inRange(row)),
+    );
+    const metric = intent.metric || 'race_starts';
+    const rowsForDriver = driverRows.filter((row) =>
+      driverNames(row).some((entryDriver) => entryDriver.id === driver.id),
+    );
+    let events;
+    let relevantSets = resultSets;
+    if (metric === 'poles') {
+      events = distinctEventRows(
+        qualifyingRows.filter((row) =>
+          driverNames(row).some((entryDriver) => entryDriver.id === driver.id),
+        ),
+        (row) => row.position === 1,
+      );
+      relevantSets = qualifyingSets;
+    } else {
+      const predicates = {
+        race_starts: isRaceStart,
+        race_wins: (row) => isRaceStart(row) && row.position === 1,
+        podiums: (row) => isRaceStart(row) && row.position >= 1 && row.position <= 3,
+        fastest_laps: (row) => isRaceRow(row) && row.fastestLap?.rank === 1,
+        retirements: (row) => isRaceRow(row) && row.status === 'retired',
+        disqualifications: (row) => isRaceRow(row) && row.status === 'disqualified',
+        did_not_start: (row) => isRaceRow(row) && row.status === 'not-started',
+        did_not_qualify: (row) => isRaceRow(row) && row.status === 'not-classified',
+      };
+      events = distinctEventRows(rowsForDriver, predicates[metric] || predicates.race_starts);
+    }
+    if (!relevantSets.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The archive does not publish the ${metric.replaceAll('_', ' ')} data needed for ${driver.entity.displayName}.`,
+          reasonCode: 'DRIVER_STAT_NOT_PUBLISHED',
+        },
+        [...sets, ...relevantSets],
+      );
+    const labels = {
+      race_starts: 'race start',
+      race_wins: 'race win',
+      podiums: 'podium',
+      poles: 'pole position',
+      fastest_laps: 'fastest lap',
+      retirements: 'retirement',
+      disqualifications: 'disqualification',
+      did_not_start: 'did-not-start entry',
+      did_not_qualify: 'did-not-qualify entry',
+    };
+    const label = labels[metric] || 'result';
+    const count = events.size;
+    const scope = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' in the published archive';
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_stat',
+        templateKey: 'driver_stat',
+        values: {
+          answer: `${driver.entity.displayName} has ${count} ${label}${count === 1 ? '' : 's'}${scope}.`,
+          driver: driver.entity.displayName,
+          metric,
+          count,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          ...relevantSets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...relevantSets],
+    );
+  }
+
   async driverConstructorStarts(intent, context, { get, keys }) {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = context.driverId
@@ -432,16 +955,13 @@ export class QuestionService {
       const yearMatch = String(key).match(/:event:(\d{4}):/);
       if (!yearMatch) return true;
       const year = Number(yearMatch[1]);
-      return (
-        (!range.fromYear || year >= range.fromYear) &&
-        (!range.toYear || year <= range.toYear)
-      );
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
     });
     const resultSets = await Promise.all(resultKeys.map(get));
     const matchingEvents = new Map();
     for (const set of resultSets) {
       for (const row of set?.items || []) {
-        if (!row.sessionId?.endsWith(':race')) continue;
+        if (!isRaceStart(row)) continue;
         const eventId = sessionEventId(row.sessionId);
         const year = yearFromEventId(eventId);
         if (
@@ -515,9 +1035,7 @@ export class QuestionService {
       }
     }
     const details = await Promise.all(
-      [...new Set(wins.map((win) => win.eventId))].map((eventId) =>
-        get(`event:${eventId}`),
-      ),
+      [...new Set(wins.map((win) => win.eventId))].map((eventId) => get(`event:${eventId}`)),
     );
     const detailsByEvent = new Map(
       details
@@ -612,21 +1130,18 @@ export class QuestionService {
       details = await Promise.all(
         [...winsByEvent.keys()].map((eventId) => get(`event:${eventId}`)),
       );
-      firstWin = details
-        .map((set) => ({
-          detail: set,
-          event: set?.items?.[0]?.event,
-        }))
-        .filter((entry) => entry.event)
-        .sort((a, b) => {
-          const aDate = Date.parse(
-            a.event.schedule?.startsAt || a.event.schedule?.date || '',
-          );
-          const bDate = Date.parse(
-            b.event.schedule?.startsAt || b.event.schedule?.date || '',
-          );
-          return aDate - bDate || (a.event.round || 0) - (b.event.round || 0);
-        })[0] || null;
+      firstWin =
+        details
+          .map((set) => ({
+            detail: set,
+            event: set?.items?.[0]?.event,
+          }))
+          .filter((entry) => entry.event)
+          .sort((a, b) => {
+            const aDate = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '');
+            const bDate = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '');
+            return aDate - bDate || (a.event.round || 0) - (b.event.round || 0);
+          })[0] || null;
     }
     const countAnswer = `${driver.entity.displayName} has won ${count} race${count === 1 ? '' : 's'} in their career.`;
     const answer = firstWin

@@ -156,5 +156,64 @@ test('natural-language questions return database-backed answers without a model'
   assert.equal(comparedWins.body.data.questionResult.resolvedIntent, 'driver_race_wins_comparison');
   assert.equal(comparedWins.body.data.questionResult.values.count, 1);
   assert.equal(comparedWins.body.data.questionResult.values.comparisonCount, 0);
-  assert.match(comparedWins.body.data.questionResult.values.answer, /compared with Example Two's 0/);
+  assert.match(
+    comparedWins.body.data.questionResult.values.answer,
+    /compared with Example Two's 0/,
+  );
+
+  const podium = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Who finished on the podium at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(podium.body.data.questionResult.resolvedIntent, 'event_podium');
+  assert.match(podium.body.data.questionResult.values.podium, /P1 Example One/);
+  assert.equal(podium.body.data.questionResult.values.missingPositions, '3');
+
+  const pole = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Who was on pole at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(pole.body.data.questionResult.values.drivers, 'Example One');
+
+  const fastestLap = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Who set the fastest lap at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(fastestLap.body.data.questionResult.status, 'unavailable');
+  assert.equal(fastestLap.body.data.questionResult.reasonCode, 'FASTEST_LAP_NOT_PUBLISHED');
+
+  const mostPitStops = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'Who made the most pit stops at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(mostPitStops.body.data.questionResult.values.count, 1);
+  assert.match(mostPitStops.body.data.questionResult.values.answer, /Example One/);
+
+  const fastestPitStop = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'What was the fastest pit stop at the Synthetic Grand Prix in 2024?' })
+    .expect(200);
+  assert.equal(fastestPitStop.body.data.questionResult.values.durationMs, 20000);
+  assert.equal(fastestPitStop.body.data.questionResult.values.durationType, 'lane');
+
+  const podiums = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many podiums has Example One had in his career?' })
+    .expect(200);
+  assert.equal(podiums.body.data.questionResult.values.metric, 'podiums');
+  assert.equal(podiums.body.data.questionResult.values.count, 1);
+
+  const raceStarts = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many race starts has Example One made?' })
+    .expect(200);
+  assert.equal(raceStarts.body.data.questionResult.values.metric, 'race_starts');
+  assert.equal(raceStarts.body.data.questionResult.values.count, 1);
+
+  const ambiguousDnf = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many DNFs has Example One had?' })
+    .expect(200);
+  assert.equal(ambiguousDnf.body.data.questionResult.status, 'clarification');
+  assert.match(ambiguousDnf.body.data.questionResult.message, /retirements/);
 });

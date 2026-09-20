@@ -47,7 +47,8 @@ export function classification(row, sessionId) {
   let kind;
   if (status === 'Finished' || /^\+\d+ Laps?$/.test(status)) kind = 'finished';
   else if (/disqual/i.test(status)) kind = 'disqualified';
-  else if (/did not start|did not qualify/i.test(status)) kind = 'not-started';
+  else if (/did not start|\bDNS\b/i.test(status)) kind = 'not-started';
+  else if (/did not qualify|\bDNQ\b|not classified/i.test(status)) kind = 'not-classified';
   else if (/withdraw/i.test(status)) kind = 'withdrawn';
   else if (status === 'Unknown') kind = 'unknown';
   else kind = 'retired';
