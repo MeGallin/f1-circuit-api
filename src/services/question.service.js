@@ -53,6 +53,25 @@ function yearRange(text, context) {
   return { fromYear: null, toYear: null };
 }
 
+function parseHostedCircuitQuestion(text, context) {
+  const lower = normalize(text);
+  const asksCircuit =
+    /\b(?:which|what)\s+(?:circuit|track|venue)\s+(?:hosted|held|used)\b/.test(lower) ||
+    /\bwhere\s+was\b.*\b(?:held|hosted|run)\b/.test(lower);
+  if (!asksCircuit) return null;
+  const range = yearRange(text, context);
+  const eventMatch = lower.match(
+    /\b(?:19\d{2}|20\d{2})\s+([a-z0-9]+(?:\s+[a-z0-9]+){0,4})\s+(?:grand\s+prix|gp)\b/,
+  );
+  return {
+    intent: 'event_circuit',
+    eventName: eventMatch ? `${eventMatch[1]} Grand Prix` : null,
+    fromYear: range.fromYear,
+    toYear: range.toYear,
+    clarificationNeeded: false,
+  };
+}
+
 function sessionEventId(sessionId) {
   if (!sessionId?.startsWith('session:')) return null;
   const last = sessionId.lastIndexOf(':');
@@ -217,6 +236,8 @@ export class QuestionService {
   async interpretDeterministically(text, context, helpers) {
     if (!text) return null;
     const lower = normalize(text);
+    const hostedCircuit = parseHostedCircuitQuestion(text, context);
+    if (hostedCircuit) return this.executeIntent(hostedCircuit, context, helpers, text);
     const finishingPosition = parseFinishingPositionQuestion(lower);
     if (finishingPosition)
       return this.executeIntent(
@@ -597,6 +618,8 @@ export class QuestionService {
       return this.archiveSearch(intent.searchTerms || originalText, context, { get, keys });
     if (intent?.intent === 'event_winner')
       return this.eventWinner(intent.eventName, context, originalText, { get, keys });
+    if (intent?.intent === 'event_circuit')
+      return this.eventCircuit(intent, context, originalText, { get, keys });
     if (intent?.intent === 'driver_constructor_race_starts')
       return this.driverConstructorStarts(intent, context, { get, keys });
     if (intent?.intent === 'driver_last_win')
@@ -924,6 +947,97 @@ export class QuestionService {
       });
     if (candidates.length === 1) return { eventId: candidates[0].event.id, set: candidates[0].set };
     return null;
+  }
+
+  async eventCircuit(intent, context, text, { get, keys }) {
+    const rawYear = intent.fromYear ?? intent.toYear ?? context.year;
+    const year = rawYear == null ? null : Number(rawYear);
+    if (!Number.isInteger(year))
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which season do you mean?',
+          choices: [],
+        },
+        [],
+      );
+
+    const resolved = await this.resolveEvent(
+      intent.eventName,
+      { ...context, eventId: null },
+      text,
+      { get, keys },
+    );
+    if (!resolved) {
+      const eventSets = await Promise.all((await keys(`events:${year}`)).map(get));
+      const target = normalize(intent.eventName);
+      const candidates = eventSets
+        .flatMap((set) => (set?.items || []).map((event) => ({ event, set })))
+        .filter(({ event }) => {
+          const value = normalize(`${event.name} ${event.id} ${event.circuit?.displayName || ''}`);
+          return target && (value.includes(target) || target.includes(normalize(event.name)));
+        });
+      if (!eventSets.length || !candidates.length)
+        return this.result(
+          {
+            status: 'unavailable',
+            message: `The ${intent.eventName || 'requested event'} is not published for ${year}.`,
+            reasonCode: 'EVENT_NOT_PUBLISHED',
+          },
+          eventSets,
+        );
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which Grand Prix do you mean?',
+          choices: [],
+        },
+        eventSets,
+      );
+    }
+
+    const detail = await get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event ||
+      resolved.set?.items?.find((item) => item.id === resolved.eventId);
+    const circuit = event?.circuit;
+    if (!event || !circuit?.displayName)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `A circuit is not published for the ${intent.eventName || 'requested event'}.`,
+          reasonCode: 'EVENT_CIRCUIT_NOT_PUBLISHED',
+        },
+        [resolved.set, detail],
+      );
+
+    const coverage = [resolved.set, detail].some(
+      (set) => set?.coverage !== 'complete' || set?.warnings?.length,
+    )
+      ? 'partial'
+      : 'complete';
+    const eventLabel = event.year ? `${event.year} ${event.name}` : event.name;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_circuit',
+        templateKey: 'event_circuit',
+        values: {
+          answer: `The ${eventLabel} was held at ${circuit.displayName}.`,
+          event: event.name,
+          year: event.year,
+          round: event.round,
+          circuit: circuit.displayName,
+          circuitId: circuit.id,
+          coverage,
+          ...(coverage === 'partial'
+            ? { coverageNote: 'The answer uses the published event and circuit association.' }
+            : {}),
+        },
+        evidenceIds: unique([resolved.set?.evidenceId, detail?.evidenceId]),
+      },
+      [resolved.set, detail],
+    );
   }
 
   async eventWinner(eventName, context, text, helpers) {
