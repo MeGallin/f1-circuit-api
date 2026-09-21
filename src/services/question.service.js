@@ -81,6 +81,20 @@ function isRaceStart(row) {
   return isRaceRow(row) && !['not-started', 'not-classified', 'withdrawn'].includes(row.status);
 }
 
+function isSecondPlaceLeaderboardQuestion(lower) {
+  const hasSecondPlacePhrase =
+    /\bsecond\s+(?:place|places|position|positions)\b/.test(lower) ||
+    /\bsecond\s+(?:place|position)\s+on\s+(?:the\s+)?podium\b/.test(lower) ||
+    /\bfinished\s+second\b/.test(lower) ||
+    /\brunner\s*up\b/.test(lower);
+  const asksForMost = /\b(?:most|highest|more\s+often)\b/.test(lower);
+  const hasQuestionCue =
+    /\b(?:who|which)\b/.test(lower) ||
+    /\bdriver\b/.test(lower) ||
+    /\bmost\s+second\s+(?:place|places|position|positions)\b/.test(lower);
+  return hasSecondPlacePhrase && asksForMost && hasQuestionCue;
+}
+
 function driverNames(row) {
   return row?.entry?.drivers || [];
 }
@@ -165,6 +179,17 @@ export class QuestionService {
   async interpretDeterministically(text, context, helpers) {
     if (!text) return null;
     const lower = normalize(text);
+    if (isSecondPlaceLeaderboardQuestion(lower))
+      return this.executeIntent(
+        {
+          intent: 'driver_second_place_finishes',
+          ...yearRange(text, context),
+          originalText: text,
+        },
+        context,
+        helpers,
+        text,
+      );
     if (/\bwho\s+won\b|\bwinner\b/.test(lower)) {
       const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers, context);
       if (circuitQuestion)
@@ -508,6 +533,8 @@ export class QuestionService {
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'driver_race_wins_comparison')
       return this.driverRaceWinsComparison(intent, context, { get, keys });
+    if (intent?.intent === 'driver_second_place_finishes')
+      return this.driverSecondPlaceFinishes(intent, context, { get, keys });
     if (intent?.intent === 'driver_stat')
       return this.driverStat(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'event_podium')
@@ -1798,6 +1825,105 @@ export class QuestionService {
         ]).slice(0, 12),
       },
       [...sets, ...relevantSets],
+    );
+  }
+
+  async driverSecondPlaceFinishes(intent, context, { get, keys }) {
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(intent.originalText || '', context);
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const inRange = (row) => {
+      if (!isRaceRow(row)) return false;
+      const year = yearFromEventId(sessionEventId(row.sessionId));
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+    };
+    const relevantSets = resultSets.filter((set) => (set?.items || []).some(inRange));
+    const raceRows = relevantSets.flatMap((set) => (set?.items || []).filter(inRange));
+    const positionedRows = raceRows.filter((row) => Number.isInteger(row.position));
+    const secondRows = positionedRows.filter((row) => isRaceStart(row) && row.position === 2);
+    const evidenceSets = relevantSets.length ? relevantSets : resultSets;
+    const unavailable = (message, reasonCode) =>
+      this.result({ status: 'unavailable', message, reasonCode }, evidenceSets);
+
+    if (!resultSets.length || !raceRows.length)
+      return unavailable(
+        'Published race-result positions are not available for the selected period.',
+        'SECOND_PLACE_RESULTS_NOT_PUBLISHED',
+      );
+    if (!positionedRows.length)
+      return unavailable(
+        'Published race results do not include usable finishing positions for the selected period.',
+        'SECOND_PLACE_POSITIONS_NOT_PUBLISHED',
+      );
+    if (!secondRows.length)
+      return unavailable(
+        'No published second-place finishes are available for the selected period.',
+        'SECOND_PLACE_FINISHES_NOT_PUBLISHED',
+      );
+
+    const counts = new Map();
+    let unmappedRows = 0;
+    for (const row of secondRows) {
+      const driver = driverNames(row)[0];
+      if (!driver?.id || !driver.displayName) {
+        unmappedRows += 1;
+        continue;
+      }
+      const entry = counts.get(driver.id) || { driver: driver.displayName, count: 0 };
+      entry.count += 1;
+      counts.set(driver.id, entry);
+    }
+    if (!counts.size)
+      return unavailable(
+        'Published second-place finishes cannot be linked to a driver.',
+        'SECOND_PLACE_DRIVER_MAPPING_UNAVAILABLE',
+      );
+
+    const highest = Math.max(...[...counts.values()].map((entry) => entry.count));
+    const leaders = [...counts.values()]
+      .filter((entry) => entry.count === highest)
+      .sort((a, b) => a.driver.localeCompare(b.driver));
+    const leaderNames = leaders.map((entry) => entry.driver);
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' in the published archive';
+    const coverage =
+      raceRows.length !== positionedRows.length ||
+      unmappedRows > 0 ||
+      evidenceSets.some((set) => set?.coverage !== 'complete' || set?.warnings?.length)
+        ? 'partial'
+        : 'complete';
+    const answer =
+      leaders.length > 1
+        ? `${humanList(leaderNames)} are tied for the most published second-place finishes, with ${highest} each${period}.`
+        : `${leaderNames[0]} has the most published second-place finishes, with ${highest}${period}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_second_place_finishes',
+        templateKey: 'driver_second_place_finishes',
+        values: {
+          answer,
+          driver: humanList(leaderNames),
+          drivers: humanList(leaderNames),
+          count: highest,
+          tied: leaders.length > 1,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+          coverage,
+          ...(coverage === 'partial'
+            ? {
+                coverageNote:
+                  'The count uses published race-result rows only; some rows or finishing positions are incomplete.',
+              }
+            : {}),
+          excludedRows: unmappedRows,
+        },
+        evidenceIds: unique(evidenceSets.map((set) => set?.evidenceId)).slice(0, 12),
+      },
+      evidenceSets,
     );
   }
 
