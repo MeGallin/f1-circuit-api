@@ -46,8 +46,7 @@ function yearRange(text, context) {
   const years = [...String(text).matchAll(/\b(19\d{2}|20\d{2})\b/g)].map((m) => Number(m[1]));
   if (years.length >= 2) return { fromYear: Math.min(...years), toYear: Math.max(...years) };
   if (years.length === 1) return { fromYear: years[0], toYear: years[0] };
-  const anchor =
-    Number(context.year) || Number(context.currentYear) || new Date().getUTCFullYear();
+  const anchor = Number(context.year) || Number(context.currentYear) || new Date().getUTCFullYear();
   if (/\bthis\s+(?:year|season)\b/i.test(text)) return { fromYear: anchor, toYear: anchor };
   if (/\blast\s+year\b/i.test(text)) return { fromYear: anchor - 1, toYear: anchor - 1 };
   if (/last\s+(?:four|4)\s+years?/i.test(text)) return { fromYear: anchor - 3, toYear: anchor };
@@ -233,11 +232,9 @@ export class QuestionService {
       );
     if (/\bwho\s+won\b|\bwinner\b/.test(lower)) {
       const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers, context);
-      if (circuitQuestion)
-        return this.executeIntent(circuitQuestion, context, helpers, text);
+      if (circuitQuestion) return this.executeIntent(circuitQuestion, context, helpers, text);
       const countryQuestion = await this.detectCountryWinnerQuestion(text, helpers, context);
-      if (countryQuestion)
-        return this.executeIntent(countryQuestion, context, helpers, text);
+      if (countryQuestion) return this.executeIntent(countryQuestion, context, helpers, text);
       if (context.eventId)
         return this.executeIntent(
           {
@@ -505,8 +502,8 @@ export class QuestionService {
           text,
         );
     }
-    if (/\bhow\s+many\b/.test(lower) && /\b(win|won|victor(?:y|ies))\b/.test(lower)) {
-      const { items } = await this.profiles(helpers);
+    if (/\bhow\s+many\b/.test(lower) && /\b(win|wins|won|victor(?:y|ies))\b/.test(lower)) {
+      const { sets, items } = await this.profiles(helpers);
       const drivers = items
         .filter(
           (profile) =>
@@ -517,6 +514,40 @@ export class QuestionService {
             lower.indexOf(normalize(a.entity.displayName)) -
             lower.indexOf(normalize(b.entity.displayName)),
         );
+      const range = yearRange(text, context);
+      if (range.fromYear !== null) {
+        if (drivers.length >= 2 && /\b(compared\s+to|versus|vs|than)\b/.test(lower))
+          return this.result(
+            {
+              status: 'unsupported',
+              message: 'Season-specific driver win comparisons are not supported yet.',
+              reasonCode: 'DRIVER_RACE_WINS_SEASON_COMPARISON_UNSUPPORTED',
+            },
+            sets,
+          );
+        const driver = drivers[0];
+        if (driver)
+          return this.executeIntent(
+            {
+              intent: 'driver_race_wins_season',
+              driverName: driver.entity.displayName,
+              fromYear: range.fromYear,
+              toYear: range.toYear,
+              originalText: text,
+            },
+            context,
+            helpers,
+            text,
+          );
+        return this.result(
+          {
+            status: 'clarification',
+            message: 'Which driver do you mean?',
+            choices: [],
+          },
+          sets,
+        );
+      }
       if (drivers.length >= 2 && /\b(compared\s+to|versus|vs|than)\b/.test(lower))
         return this.executeIntent(
           {
@@ -572,6 +603,8 @@ export class QuestionService {
       return this.driverLastWin(intent, context, { get, keys });
     if (intent?.intent === 'driver_race_wins')
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
+    if (intent?.intent === 'driver_race_wins_season')
+      return this.driverRaceWinsSeason(intent, context, { get, keys });
     if (intent?.intent === 'driver_race_wins_comparison')
       return this.driverRaceWinsComparison(intent, context, { get, keys });
     if (intent?.intent === 'driver_finishing_position')
@@ -721,11 +754,13 @@ export class QuestionService {
     );
     const eventSets = await Promise.all((await keys('events:')).map(get));
     const circuitTargets = unique(
-      circuits.flatMap((circuit) => [
-        circuit.entity.displayName,
-        circuit.entity.id,
-        ...(circuit.aliases || []),
-      ]).map(normalize),
+      circuits
+        .flatMap((circuit) => [
+          circuit.entity.displayName,
+          circuit.entity.id,
+          ...(circuit.aliases || []),
+        ])
+        .map(normalize),
     );
     const range =
       Number.isInteger(intent.fromYear) || Number.isInteger(intent.toYear)
@@ -764,7 +799,11 @@ export class QuestionService {
       .sort((a, b) => {
         const dateA = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '') || 0;
         const dateB = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '') || 0;
-        return dateB - dateA || (b.event.year || 0) - (a.event.year || 0) || (b.event.round || 0) - (a.event.round || 0);
+        return (
+          dateB - dateA ||
+          (b.event.year || 0) - (a.event.year || 0) ||
+          (b.event.round || 0) - (a.event.round || 0)
+        );
       });
     const limit = Math.min(Math.max(Number(intent.limit) || 1, 1), 10);
     const selected = winners.slice(0, limit);
@@ -794,9 +833,7 @@ export class QuestionService {
         templateKey: countryScope ? 'country_race_winners' : 'circuit_race_winners',
         values: {
           answer,
-          ...(countryScope
-            ? { country: label }
-            : { circuit: circuits[0].entity.displayName }),
+          ...(countryScope ? { country: label } : { circuit: circuits[0].entity.displayName }),
           count: selected.length,
           winners: lines.join('; '),
         },
@@ -2158,6 +2195,80 @@ export class QuestionService {
       }
     }
     return winsByEvent;
+  }
+
+  async driverRaceWinsSeason(intent, context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which driver do you mean?',
+          choices: [],
+        },
+        sets,
+      );
+
+    const season = Number(intent.fromYear ?? intent.toYear);
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const inSeason = (row) =>
+      isRaceRow(row) && yearFromEventId(sessionEventId(row.sessionId)) === season;
+    const relevantSets = resultSets.filter((set) => (set?.items || []).some(inSeason));
+    const raceRows = relevantSets.flatMap((set) => (set?.items || []).filter(inSeason));
+    const evidenceSets = relevantSets.length ? relevantSets : resultSets;
+    if (!resultSets.length || !raceRows.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `Published race results are not available for ${season}.`,
+          reasonCode: 'DRIVER_RACE_WINS_SEASON_NOT_PUBLISHED',
+        },
+        [...sets, ...evidenceSets],
+      );
+
+    const wins = raceRows.filter(
+      (row) =>
+        isRaceStart(row) &&
+        row.position === 1 &&
+        driverNames(row).some((entryDriver) => entryDriver.id === driver.id),
+    );
+    const coverage = evidenceSets.some(
+      (set) => set?.coverage !== 'complete' || set?.warnings?.length,
+    )
+      ? 'partial'
+      : 'complete';
+    const count = wins.length;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_race_wins_season',
+        templateKey: 'driver_race_wins_season',
+        values: {
+          answer: `${driver.entity.displayName} won ${count} race${count === 1 ? '' : 's'} in ${season}.`,
+          driver: driver.entity.displayName,
+          metric: 'race_wins',
+          season,
+          count,
+          fromYear: season,
+          toYear: season,
+          coverage,
+          ...(coverage === 'partial'
+            ? {
+                coverageNote:
+                  'The count uses published race-result rows from the selected season only.',
+              }
+            : {}),
+        },
+        evidenceIds: unique([
+          ...sets.map((set) => set?.evidenceId),
+          ...evidenceSets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...evidenceSets],
+    );
   }
 
   async driverRaceWins(intent, _context, { get, keys }, originalText = '') {
