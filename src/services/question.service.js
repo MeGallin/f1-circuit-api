@@ -81,18 +81,57 @@ function isRaceStart(row) {
   return isRaceRow(row) && !['not-started', 'not-classified', 'withdrawn'].includes(row.status);
 }
 
-function isSecondPlaceLeaderboardQuestion(lower) {
-  const hasSecondPlacePhrase =
-    /\bsecond\s+(?:place|places|position|positions)\b/.test(lower) ||
-    /\bsecond\s+(?:place|position)\s+on\s+(?:the\s+)?podium\b/.test(lower) ||
-    /\bfinished\s+second\b/.test(lower) ||
-    /\brunner\s*up\b/.test(lower);
+const finishingPositionWords = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
+  eleventh: 11,
+  twelfth: 12,
+  thirteenth: 13,
+  fourteenth: 14,
+  fifteenth: 15,
+  sixteenth: 16,
+  seventeenth: 17,
+  eighteenth: 18,
+  nineteenth: 19,
+  twentieth: 20,
+};
+
+const finishingPositionWordPattern = Object.keys(finishingPositionWords).join('|');
+
+function parseFinishingPositionQuestion(lower) {
   const asksForMost = /\b(?:most|highest|more\s+often)\b/.test(lower);
-  const hasQuestionCue =
-    /\b(?:who|which)\b/.test(lower) ||
-    /\bdriver\b/.test(lower) ||
-    /\bmost\s+second\s+(?:place|places|position|positions)\b/.test(lower);
-  return hasSecondPlacePhrase && asksForMost && hasQuestionCue;
+  const hasNonFinishPosition =
+    /\b(?:pole|qualifying|grid|starting)\s+position(?:s)?\b/.test(lower) ||
+    /\bpole\s+positions?\b/.test(lower);
+  const hasFinishingContext =
+    /\bfinish(?:es|ed)?\b|\bplace(?:s)?\b|\bpodium\b|\brunner\s+up\b/.test(lower);
+  if (asksForMost && hasNonFinishPosition) return { invalid: true };
+  if (!asksForMost || !hasFinishingContext) return null;
+
+  const candidates = [];
+  for (const match of lower.matchAll(new RegExp(`\\b(${finishingPositionWordPattern})\\b`, 'g')))
+    candidates.push(finishingPositionWords[match[1]]);
+  for (const match of lower.matchAll(/\b(\d{1,3})(?:st|nd|rd|th)\b/g))
+    candidates.push(Number(match[1]));
+  for (const match of lower.matchAll(/\b(?:position|place)\s+(\d{1,3})\b/g))
+    candidates.push(Number(match[1]));
+  if (/\brunner\s+up\b/.test(lower)) candidates.push(2);
+
+  if (candidates.length !== 1 || candidates[0] < 1 || candidates[0] > 99) return { invalid: true };
+  return { position: candidates[0], invalid: false };
+}
+
+function finishingPositionLabel(position) {
+  const word = Object.entries(finishingPositionWords).find(([, value]) => value === position)?.[0];
+  return word ? `${word}-place` : `P${position}`;
 }
 
 function driverNames(row) {
@@ -179,10 +218,12 @@ export class QuestionService {
   async interpretDeterministically(text, context, helpers) {
     if (!text) return null;
     const lower = normalize(text);
-    if (isSecondPlaceLeaderboardQuestion(lower))
+    const finishingPosition = parseFinishingPositionQuestion(lower);
+    if (finishingPosition)
       return this.executeIntent(
         {
-          intent: 'driver_second_place_finishes',
+          intent: 'driver_finishing_position',
+          ...finishingPosition,
           ...yearRange(text, context),
           originalText: text,
         },
@@ -533,8 +574,8 @@ export class QuestionService {
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'driver_race_wins_comparison')
       return this.driverRaceWinsComparison(intent, context, { get, keys });
-    if (intent?.intent === 'driver_second_place_finishes')
-      return this.driverSecondPlaceFinishes(intent, context, { get, keys });
+    if (intent?.intent === 'driver_finishing_position')
+      return this.driverFinishingPosition(intent, context, { get, keys });
     if (intent?.intent === 'driver_stat')
       return this.driverStat(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'event_podium')
@@ -1828,7 +1869,16 @@ export class QuestionService {
     );
   }
 
-  async driverSecondPlaceFinishes(intent, context, { get, keys }) {
+  async driverFinishingPosition(intent, context, { get, keys }) {
+    if (intent.invalid || !Number.isInteger(intent.position))
+      return this.result(
+        {
+          status: 'unsupported',
+          message: 'Specify one valid race finishing position, such as first, 2nd or position 5.',
+          reasonCode: 'FINISHING_POSITION_INVALID',
+        },
+        [],
+      );
     const range =
       intent.fromYear !== null && intent.fromYear !== undefined
         ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
@@ -1842,7 +1892,6 @@ export class QuestionService {
     const relevantSets = resultSets.filter((set) => (set?.items || []).some(inRange));
     const raceRows = relevantSets.flatMap((set) => (set?.items || []).filter(inRange));
     const positionedRows = raceRows.filter((row) => Number.isInteger(row.position));
-    const secondRows = positionedRows.filter((row) => isRaceStart(row) && row.position === 2);
     const evidenceSets = relevantSets.length ? relevantSets : resultSets;
     const unavailable = (message, reasonCode) =>
       this.result({ status: 'unavailable', message, reasonCode }, evidenceSets);
@@ -1850,22 +1899,25 @@ export class QuestionService {
     if (!resultSets.length || !raceRows.length)
       return unavailable(
         'Published race-result positions are not available for the selected period.',
-        'SECOND_PLACE_RESULTS_NOT_PUBLISHED',
+        'FINISHING_POSITION_RESULTS_NOT_PUBLISHED',
       );
     if (!positionedRows.length)
       return unavailable(
         'Published race results do not include usable finishing positions for the selected period.',
-        'SECOND_PLACE_POSITIONS_NOT_PUBLISHED',
+        'FINISHING_POSITION_DATA_NOT_PUBLISHED',
       );
-    if (!secondRows.length)
+    const positionRows = positionedRows.filter(
+      (row) => isRaceStart(row) && row.position === intent.position,
+    );
+    if (!positionRows.length)
       return unavailable(
-        'No published second-place finishes are available for the selected period.',
-        'SECOND_PLACE_FINISHES_NOT_PUBLISHED',
+        `No published ${finishingPositionLabel(intent.position)} finishes are available for the selected period.`,
+        'FINISHING_POSITION_NOT_PUBLISHED',
       );
 
     const counts = new Map();
     let unmappedRows = 0;
-    for (const row of secondRows) {
+    for (const row of positionRows) {
       const driver = driverNames(row)[0];
       if (!driver?.id || !driver.displayName) {
         unmappedRows += 1;
@@ -1877,8 +1929,8 @@ export class QuestionService {
     }
     if (!counts.size)
       return unavailable(
-        'Published second-place finishes cannot be linked to a driver.',
-        'SECOND_PLACE_DRIVER_MAPPING_UNAVAILABLE',
+        `Published ${finishingPositionLabel(intent.position)} finishes cannot be linked to a driver.`,
+        'FINISHING_POSITION_DRIVER_MAPPING_UNAVAILABLE',
       );
 
     const highest = Math.max(...[...counts.values()].map((entry) => entry.count));
@@ -1897,18 +1949,20 @@ export class QuestionService {
         : 'complete';
     const answer =
       leaders.length > 1
-        ? `${humanList(leaderNames)} are tied for the most published second-place finishes, with ${highest} each${period}.`
-        : `${leaderNames[0]} has the most published second-place finishes, with ${highest}${period}.`;
+        ? `${humanList(leaderNames)} are tied for the most published ${finishingPositionLabel(intent.position)} finishes, with ${highest} each${period}.`
+        : `${leaderNames[0]} has the most published ${finishingPositionLabel(intent.position)} finishes, with ${highest}${period}.`;
     return this.result(
       {
         status: 'answered',
-        resolvedIntent: 'driver_second_place_finishes',
-        templateKey: 'driver_second_place_finishes',
+        resolvedIntent: 'driver_finishing_position',
+        templateKey: 'driver_finishing_position',
         values: {
           answer,
           driver: humanList(leaderNames),
           drivers: humanList(leaderNames),
           count: highest,
+          position: intent.position,
+          positionLabel: finishingPositionLabel(intent.position),
           tied: leaders.length > 1,
           fromYear: range.fromYear,
           toYear: range.toYear,
