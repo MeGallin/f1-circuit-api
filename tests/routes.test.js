@@ -81,6 +81,37 @@ test('search matches comma-separated terms while preserving record type filters'
   );
 });
 
+test('search pagination keeps its publication snapshot and rejects mismatched cursors', async () => {
+  const { app } = appFixture();
+  const first = await request(app)
+    .get('/api/v1/search')
+    .query({ q: 'Example', limit: 2 })
+    .expect(200);
+  assert.equal(first.body.meta.snapshotId, 'synthetic-publication');
+  assert.equal(first.body.data.items.length, 2);
+  assert.equal(first.body.data.page.hasMore, true);
+  const second = await request(app)
+    .get('/api/v1/search')
+    .query({ q: 'Example', limit: 2, cursor: first.body.data.page.nextCursor })
+    .expect(200);
+  assert.equal(second.body.meta.snapshotId, first.body.meta.snapshotId);
+  assert.notDeepEqual(second.body.data.items, first.body.data.items);
+  await request(app)
+    .get('/api/v1/search')
+    .query({
+      q: 'Example',
+      limit: 2,
+      cursor: first.body.data.page.nextCursor,
+      snapshotId: 'expired',
+    })
+    .expect(400);
+  await request(app)
+    .get('/api/v1/search')
+    .query({ q: 'Example', snapshotId: 'expired' })
+    .expect(409);
+  await request(app).get('/api/v1/search').query({ q: 'Example', kind: 'records' }).expect(400);
+});
+
 test('circuit-scoped question plans compare published weather periods', async () => {
   const { repository } = appFixture();
   const currentEvents = await repository.get('events:2024');
