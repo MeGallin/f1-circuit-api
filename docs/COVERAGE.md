@@ -1,6 +1,6 @@
 # Implemented coverage and release boundaries
 
-This delivery implements an API foundation and a historical vertical slice. All 35 contract operations are registered and schema checked; **route coverage is not equivalent to full historical dataset coverage**. The remaining product breadth is visible through unavailable states rather than fabricated responses.
+This delivery implements an API foundation and a historical vertical slice. All 34 contract operations are registered and schema checked; **route coverage is not equivalent to full historical dataset coverage**. The remaining product breadth is visible through unavailable states rather than fabricated responses.
 
 | Capability                                              | Current implementation                                                                                                                 |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -13,7 +13,7 @@ This delivery implements an API foundation and a historical vertical slice. All 
 | Standings                                               | Published round snapshots and progression; earlier-round imports do not regress latest standings                                       |
 | Profiles/history/search                                 | Imported driver, constructor and circuit identities, supplied biography/location and scoped histories                                  |
 | Evidence/source status                                  | Selected assertions, field conflicts, retrieval metadata, provider status and import coverage                                          |
-| Impact/records/comparisons                              | Unavailable until historical scoring/credit and before/after snapshots are qualified; no modern-rule recomputation                     |
+| Impact/comparisons                                      | Unavailable until historical scoring/credit and before/after snapshots are qualified; no modern-rule recomputation                     |
 | Penalties                                               | Contract exists; no automatic inference from race-control prose                                                                        |
 | Telemetry/positions/intervals/locations/overtakes/radio | Contract boundary exists; high-volume/media ingestion remains follow-up work                                                           |
 | Circuit layout assets                                   | Contract exists; asset permission/identity verification remains a release gate                                                         |

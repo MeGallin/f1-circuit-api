@@ -76,7 +76,6 @@ try {
     const query = { snapshotId: snapshot.id };
     for (const spec of operation.parameters.filter((p) => p.in === 'query' && p.required))
       query[spec.name] = values[spec.name] ?? spec.schema.enum?.[0];
-    if (operation.operationId === 'getRecords') query.entityId = driverId;
     if (!operation.parameters.some((p) => p.name === 'snapshotId')) delete query.snapshotId;
     const agent = request(app);
     let req = agent[operation.method](

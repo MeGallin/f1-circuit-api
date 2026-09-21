@@ -1618,46 +1618,6 @@
       ]
     },
     {
-      "name": "Success | getRecords",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/records?scope=driver&metric=starts&entityId=driver%3Aexample-one"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
-              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Validation | getRecords",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/v1/records?scope=driver&metric=starts&entityId=driver%3Aexample-one&unknownParameter=invalid"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
-              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
-            ]
-          }
-        }
-      ]
-    },
-    {
       "name": "Success | getComparison",
       "request": {
         "method": "GET",

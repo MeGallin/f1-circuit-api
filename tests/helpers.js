@@ -88,7 +88,6 @@ export function exampleRequest(operation, repository) {
         from: '2024-01-01T12:00:00Z',
         to: '2024-01-01T12:01:00Z',
       }[p.name];
-  if (operation.operationId === 'getRecords') query.entityId = 'driver:example-one';
   return {
     path:
       '/api/v1' + operation.path.replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(ids[key])),

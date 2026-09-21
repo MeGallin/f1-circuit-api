@@ -90,8 +90,6 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Success          | getLayouts            | 200 |
 | Validation       | getLayouts            | 400 |
 | Missing resource | getLayouts            | 404 |
-| Success          | getRecords            | 200 |
-| Validation       | getRecords            | 400 |
 | Success          | getComparison         | 200 |
 | Validation       | getComparison         | 400 |
 | Success          | search                | 200 |

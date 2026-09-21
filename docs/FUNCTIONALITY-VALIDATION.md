@@ -2,7 +2,7 @@
 
 ## Changes
 
-Explicit snapshot requests cannot read a staging archive publication. Published historical snapshots remain readable. Record/comparison requests validate entity kinds and known years; valid season comparisons return unavailable coverage until metrics exist. Missing source standings ranks remain null instead of being inferred from row order.
+Explicit snapshot requests cannot read a staging archive publication. Published historical snapshots remain readable. Comparison requests validate entity kinds and known years; valid season comparisons return unavailable coverage until metrics exist. Missing source standings ranks remain null instead of being inferred from row order.
 
 ## Verification
 
