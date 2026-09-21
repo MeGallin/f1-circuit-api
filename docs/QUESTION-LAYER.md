@@ -41,4 +41,9 @@ Seasonal driver race-win questions parse the canonical driver and explicit year,
 
 Relative periods such as “this year” and “last year” are resolved into explicit year ranges by the query plan. A circuit comparison resolves the circuit once, finds its canonical events in each requested range, and aggregates only the corresponding published session datasets. A country history query resolves all matching circuit profiles before selecting race results. Neither scope may inherit the Explore page’s selected season unless the question explicitly supplies a year or relative period.
 
-The complete acceptance matrix, including examples for compound questions, current seasons, partial coverage, ties, missing fields, source conflicts and unsupported datasets, is maintained in `docs/QUESTION-COVERAGE.md`.
+The executable contract corpus and live read-only verifier are documented in
+`docs/QUESTION-CONTRACT.md`, `tests/question-contract/`, and
+`scripts/check-question-contract.js`. The broader acceptance matrix, including
+examples for compound questions, current seasons, partial coverage, ties,
+missing fields, source conflicts and unsupported datasets, is maintained in
+`docs/QUESTION-COVERAGE.md`.

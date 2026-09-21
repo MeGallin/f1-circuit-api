@@ -1052,6 +1052,7 @@ export class QuestionService {
         [],
       );
     const detail = await helpers.get(`event:${resolved.eventId}`);
+    const resultSet = await helpers.get(`results:${raceSessionId(resolved.eventId)}`);
     const item = detail?.items?.[0];
     const winner = item?.winner;
     const driver = winner?.drivers?.[0]?.displayName || null;
@@ -1063,7 +1064,7 @@ export class QuestionService {
           message: 'A winner is not published for that event.',
           reasonCode: 'WINNER_NOT_PUBLISHED',
         },
-        [resolved.set, detail],
+        [resolved.set, resultSet, detail],
       );
     const event = item.event;
     return this.result(
@@ -1079,9 +1080,9 @@ export class QuestionService {
           year: event.year,
           round: event.round,
         },
-        evidenceIds: unique([detail.evidenceId, resolved.set.evidenceId]),
+        evidenceIds: unique([resultSet?.evidenceId, detail.evidenceId, resolved.set.evidenceId]),
       },
-      [resolved.set, detail],
+      [resolved.set, resultSet, detail],
     );
   }
 
@@ -1926,9 +1927,9 @@ export class QuestionService {
             toYear: range.toYear,
           },
           evidenceIds: unique([
-            ...sets.map((set) => set?.evidenceId),
             ...driverStandingSets.map((set) => set?.evidenceId),
             ...championships.map(({ set }) => set?.evidenceId),
+            ...sets.map((set) => set?.evidenceId),
           ]).slice(0, 12),
         },
         [...sets, ...driverStandingSets, ...championships.map(({ set }) => set)],
@@ -2012,8 +2013,8 @@ export class QuestionService {
           toYear: range.toYear,
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           ...relevantSets.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...relevantSets],
@@ -2204,8 +2205,8 @@ export class QuestionService {
           count,
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           ...Array.from(matchingEvents.values(), (event) => event.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...resultSets],
@@ -2285,9 +2286,9 @@ export class QuestionService {
           circuit: event.circuit?.displayName || null,
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           latest.resultSet.evidenceId,
           latest.detail.evidenceId,
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...resultSets, ...details],
@@ -2377,8 +2378,8 @@ export class QuestionService {
             : {}),
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           ...evidenceSets.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...evidenceSets],
@@ -2445,9 +2446,9 @@ export class QuestionService {
             : {}),
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           ...Array.from(winsByEvent.values(), (set) => set?.evidenceId),
           ...details.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...resultSets, ...details],
@@ -2486,9 +2487,9 @@ export class QuestionService {
           comparisonCount,
         },
         evidenceIds: unique([
-          ...sets.map((set) => set?.evidenceId),
           ...Array.from(driverWins.values(), (set) => set?.evidenceId),
           ...Array.from(comparisonWins.values(), (set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
       [...sets, ...resultSets],
