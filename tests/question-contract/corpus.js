@@ -84,6 +84,16 @@ export const questionContractScenarios = [
     derive: 'driverRelativeWins',
   },
   {
+    id: 'season-champion-2000',
+    family: 'season championship winner',
+    mode: 'deterministic',
+    questions: ['Who won the 2000 World Championship?', "Who won the 2000 Drivers' Championship?"],
+    constraints: { year: 2000, metric: 'world_championship' },
+    intent: 'season_champion',
+    derive: 'seasonChampion',
+    year: 2000,
+  },
+  {
     id: 'driver-career-wins-max',
     family: 'driver career wins',
     mode: 'deterministic',
@@ -91,6 +101,19 @@ export const questionContractScenarios = [
     constraints: { driver: 'Max Verstappen', metric: 'race_wins', scope: 'career' },
     intent: 'driver_race_wins',
     derive: 'driverCareerWins',
+  },
+  {
+    id: 'driver-last-race-schumacher',
+    family: 'driver race boundary',
+    mode: 'deterministic',
+    questions: [
+      "When was Michael Schumacher's last race?",
+      "What was Michael Schumacher's most recent Grand Prix?",
+    ],
+    constraints: { driver: 'Michael Schumacher', metric: 'last_race', scope: 'career' },
+    intent: 'driver_last_race',
+    derive: 'driverLastRace',
+    driver: 'Michael Schumacher',
   },
   {
     id: 'driver-career-podiums-max',
@@ -206,6 +229,19 @@ export const questionContractScenarios = [
     },
     intent: 'driver_constructor_race_starts',
     derive: 'driverConstructorStarts',
+  },
+  {
+    id: 'driver-constructor-count-schumacher',
+    family: 'driver constructor count',
+    mode: 'deterministic',
+    questions: [
+      'How many manufacturers did Michael Schumacher race under?',
+      'How many constructors did Michael Schumacher race for?',
+    ],
+    constraints: { driver: 'Michael Schumacher', metric: 'constructors', scope: 'career' },
+    intent: 'driver_constructor_count',
+    derive: 'driverConstructorCount',
+    driver: 'Michael Schumacher',
   },
   {
     id: 'circuit-history-monza',

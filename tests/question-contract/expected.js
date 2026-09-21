@@ -256,6 +256,27 @@ async function driverSeasonWins(data, scenario, year) {
   );
 }
 
+async function seasonChampion(data, scenario) {
+  const year = scenario.year;
+  const sets = await allSets(data, `standings:${year}:drivers`);
+  const champion = sets
+    .flatMap((set) => set?.items || [])
+    .find((row) => row.rank === 1 && row.entity?.displayName);
+  if (!champion) return unavailable('CHAMPIONSHIP_NOT_PUBLISHED', sets);
+  return answered(
+    'season_champion',
+    {
+      champion: champion.entity.displayName,
+      driver: champion.entity.displayName,
+      year,
+      metric: 'world_championship',
+    },
+    [champion.entity.displayName, year],
+    sets,
+    evidenceIds(sets),
+  );
+}
+
 async function driverMetric(data, scenario) {
   const { profile, sets } = await profileLookup(data, scenario.driver || 'Max Verstappen');
   if (!profile) return { status: 'clarification', evidenceIds: evidenceIds(sets) };
@@ -311,6 +332,56 @@ async function driverCareerWins(data, scenario) {
     [profile.entity.displayName, wins.size],
     [...sets, ...resultSets],
     evidenceIds(resultSets),
+  );
+}
+
+async function driverLastRace(data, scenario) {
+  const { profile, sets } = await profileLookup(data, scenario.driver);
+  if (!profile) return { status: 'clarification', evidenceIds: evidenceIds(sets) };
+  const resultSets = await allSets(data, 'results:');
+  const candidates = [];
+  for (const resultSet of resultSets) {
+    for (const row of resultSet?.items || []) {
+      if (!isStarted(row)) continue;
+      if (!(row.entry?.drivers || []).some((driver) => driver.id === profile.id)) continue;
+      const eventId = eventIdFromSession(row.sessionId);
+      if (!eventId) continue;
+      candidates.push({ eventId, row, resultSet });
+    }
+  }
+  const eventIds = unique(candidates.map((candidate) => candidate.eventId));
+  const details = await Promise.all(
+    eventIds.map(async (eventId) => ({ eventId, detail: await data.get(`event:${eventId}`) })),
+  );
+  const detailByEvent = new Map(details.map((item) => [item.eventId, item.detail]));
+  const enriched = candidates
+    .map((candidate) => ({
+      ...candidate,
+      detail: detailByEvent.get(candidate.eventId),
+      event: detailByEvent.get(candidate.eventId)?.items?.[0]?.event,
+    }))
+    .filter((candidate) => candidate.event);
+  enriched.sort(
+    (a, b) =>
+      (Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '') || 0) -
+        (Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '') || 0) ||
+      (b.event.round || 0) - (a.event.round || 0),
+  );
+  const latest = enriched[0];
+  if (!latest) return unavailable('DRIVER_RACE_NOT_PUBLISHED', [...sets, ...resultSets]);
+  const date = latest.event.schedule?.date || null;
+  return answered(
+    'driver_last_race',
+    {
+      driver: profile.entity.displayName,
+      event: latest.event.name,
+      year: latest.event.year,
+      date,
+      circuit: latest.event.circuit?.displayName || null,
+    },
+    [profile.entity.displayName, latest.event.name, latest.event.year],
+    [...sets, latest.resultSet, latest.detail],
+    evidenceIds([latest.resultSet, latest.detail]),
   );
 }
 
@@ -452,6 +523,36 @@ async function driverConstructorStarts(data) {
   );
 }
 
+async function driverConstructorCount(data, scenario) {
+  const { profile, sets } = await profileLookup(data, scenario.driver);
+  if (!profile) return { status: 'clarification', evidenceIds: evidenceIds(sets) };
+  const resultSets = await allSets(data, 'results:');
+  const constructors = new Map();
+  for (const set of resultSets) {
+    for (const row of set?.items || []) {
+      if (!isStarted(row)) continue;
+      if (!(row.entry?.drivers || []).some((driver) => driver.id === profile.id)) continue;
+      const constructor = row.entry?.constructor;
+      if (constructor?.id) constructors.set(constructor.id, constructor.displayName);
+    }
+  }
+  const names = [...constructors.values()].sort((a, b) => a.localeCompare(b));
+  return answered(
+    'driver_constructor_count',
+    {
+      driver: profile.entity.displayName,
+      metric: 'constructors',
+      constructors: names.join(', ') || 'None published',
+      count: names.length,
+      fromYear: null,
+      toYear: null,
+    },
+    [profile.entity.displayName, names.length, ...names],
+    [...sets, ...resultSets],
+    evidenceIds(resultSets),
+  );
+}
+
 async function history(data, scenario) {
   const profileSets = await allSets(data, 'profile:');
   const profiles = profileSets.flatMap((set) => set?.items || []);
@@ -575,6 +676,8 @@ export async function deriveExpected(scenario, data) {
       });
     case 'driverSeasonWins':
       return driverSeasonWins(data, scenario, scenario.constraints.year);
+    case 'seasonChampion':
+      return seasonChampion(data, scenario);
     case 'driverRelativeWins':
       return driverSeasonWins(
         data,
@@ -583,6 +686,8 @@ export async function deriveExpected(scenario, data) {
       );
     case 'driverCareerWins':
       return driverCareerWins(data, scenario);
+    case 'driverLastRace':
+      return driverLastRace(data, scenario);
     case 'driverMetric':
       return driverMetric(data, { ...scenario, driver: 'Max Verstappen' });
     case 'finishingPosition':
@@ -593,6 +698,8 @@ export async function deriveExpected(scenario, data) {
       return driverChampionships(data, scenario);
     case 'driverConstructorStarts':
       return driverConstructorStarts(data, scenario);
+    case 'driverConstructorCount':
+      return driverConstructorCount(data, scenario);
     case 'circuitHistory':
     case 'countryHistory':
       return history(data, scenario);

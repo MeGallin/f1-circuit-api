@@ -26,6 +26,7 @@ export async function archiveJolpica({
   repository,
   service,
   phase,
+  bulkStandings,
   progress = () => {},
 }) {
   if (repository.batch.status === 'completed') return repository.batch.publication_id;
@@ -41,11 +42,30 @@ export async function archiveJolpica({
       if (repository.done(step)) continue;
       const observations = [...data.observations];
       const standings = {};
+      const standingProvenance = {};
       if (phase === 'backbone') {
         for (const [kind, endpoint, field] of [
           ['drivers', 'driverstandings', 'DriverStandings'],
           ['constructors', 'constructorstandings', 'ConstructorStandings'],
         ]) {
+          let bulk;
+          try {
+            bulk = bulkStandings?.get(year, Number(race.round), kind);
+          } catch {
+            progress({
+              phase,
+              year,
+              round: Number(race.round),
+              category: kind,
+              status: 'bulk-fallback-to-api',
+            });
+          }
+          if (bulk) {
+            standings[kind] = bulk.records;
+            standingProvenance[kind] = bulk.provenance;
+            observations.push(bulk.observation);
+            continue;
+          }
           const response = await provider.pages(
             `${year}/${race.round}/${endpoint}`,
             'StandingsTable',
@@ -72,7 +92,14 @@ export async function archiveJolpica({
       }
       repository.step = step;
       await service.publish(
-        { calendar: data.calendar, race, standings, observations, failures: [] },
+        {
+          calendar: data.calendar,
+          race,
+          standings,
+          standingProvenance,
+          observations,
+          failures: [],
+        },
         'jolpica',
       );
       progress({

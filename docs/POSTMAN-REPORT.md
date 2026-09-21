@@ -113,7 +113,7 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Validation       | reversed lap range    | 400 |
 | Maintenance      | no public sync route  | 404 |
 
-Requests: 110. Assertions: 184. Failures: 0.
+Requests: 108. Assertions: 180. Failures: 0.
 
 Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. Sync/import are operator CLI commands, not public endpoints.
 

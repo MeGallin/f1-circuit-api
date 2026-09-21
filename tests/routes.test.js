@@ -282,6 +282,85 @@ test('natural-language questions return database-backed answers without a model'
   assert.equal(count.body.data.questionResult.values.count, 1);
   assert.match(count.body.data.questionResult.values.answer, /1 race start/);
 
+  const secondConstructor = JSON.parse(
+    JSON.stringify(repository.sets.get('profile:constructor:example-team')),
+  );
+  secondConstructor.key = 'profile:constructor:second-team';
+  secondConstructor.items[0].id = 'constructor:second-team';
+  secondConstructor.items[0].entity = {
+    ...secondConstructor.items[0].entity,
+    id: 'constructor:second-team',
+    displayName: 'Second Team',
+  };
+  repository.sets.set(secondConstructor.key, secondConstructor);
+
+  const secondResult = JSON.parse(JSON.stringify(repository.sets.get(`results:${sessionId}`)));
+  secondResult.key = 'results:session:event:2023:second-grand-prix:race';
+  secondResult.items = [
+    {
+      ...secondResult.items[0],
+      id: 'result:session:event:2023:second-grand-prix:race:example-one',
+      sessionId: 'session:event:2023:second-grand-prix:race',
+      entry: {
+        ...secondResult.items[0].entry,
+        id: 'entry:session:event:2023:second-grand-prix:race:example-one',
+        constructor: {
+          id: 'constructor:second-team',
+          displayName: 'Second Team',
+          clientPath: '/constructors/constructor%3Asecond-team',
+        },
+      },
+      position: 2,
+      points: '8',
+    },
+  ];
+  repository.sets.set(secondResult.key, secondResult);
+
+  const constructorBreakdown = await request(app)
+    .post('/api/v1/questions')
+    .send({ text: 'How many races did Example One race under each team?' })
+    .expect(200);
+  assert.equal(
+    constructorBreakdown.body.data.questionResult.resolvedIntent,
+    'driver_constructor_breakdown',
+  );
+  assert.deepEqual(
+    constructorBreakdown.body.data.questionResult.values.breakdown.map((entry) => [
+      entry.constructor,
+      entry.raceStarts,
+    ]),
+    [
+      ['Example Team', 1],
+      ['Second Team', 1],
+    ],
+  );
+
+  const constructorComparison = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: "How do Example One's race statistics differ between Example Team and Second Team, and how do the results compare?",
+    })
+    .expect(200);
+  assert.equal(
+    constructorComparison.body.data.questionResult.resolvedIntent,
+    'driver_constructor_comparison',
+  );
+  assert.deepEqual(
+    constructorComparison.body.data.questionResult.values.comparisons.map((entry) => [
+      entry.constructor,
+      entry.raceStarts,
+      entry.wins,
+      entry.podiums,
+      entry.points,
+    ]),
+    [
+      ['Example Team', 1, 1, 1, 12.5],
+      ['Second Team', 1, 0, 1, 8],
+    ],
+  );
+  repository.sets.delete(secondResult.key);
+  repository.sets.delete(secondConstructor.key);
+
   const lastWin = await request(app)
     .post('/api/v1/questions')
     .send({ text: 'When did Example One last win a race?' })
@@ -341,6 +420,182 @@ test('natural-language questions return database-backed answers without a model'
     .expect(200);
   assert.equal(fastestLap.body.data.questionResult.status, 'unavailable');
   assert.equal(fastestLap.body.data.questionResult.reasonCode, 'FASTEST_LAP_NOT_PUBLISHED');
+
+  const originalCompoundResults = JSON.parse(
+    JSON.stringify(repository.sets.get(`results:${sessionId}`)),
+  );
+  const compoundResults = JSON.parse(JSON.stringify(originalCompoundResults));
+  const compoundDrivers = ['Example One', 'Example Two', 'Example Three'];
+  compoundResults.items = compoundDrivers.map((displayName, index) => ({
+    ...originalCompoundResults.items[0],
+    id: `result:session:event:2024:synthetic-grand-prix:race:${index + 1}`,
+    position: index + 1,
+    points: String([25, 18, 15][index]),
+    entry: {
+      ...originalCompoundResults.items[0].entry,
+      id: `entry:session:event:2024:synthetic-grand-prix:race:${index + 1}`,
+      drivers: [{ ...originalCompoundResults.items[0].entry.drivers[0], displayName }],
+    },
+    ...(index === 1 ? { fastestLap: { rank: 1, lapNumber: 35, durationMs: 90000 } } : {}),
+  }));
+  repository.sets.set(`results:${sessionId}`, compoundResults);
+
+  const compoundSummary = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'For the 2024 Synthetic Grand Prix, who were the top three finishers, which constructors did they represent, how many points did they score, and who set the fastest lap?',
+    })
+    .expect(200);
+  assert.equal(
+    compoundSummary.body.data.questionResult.resolvedIntent,
+    'event_compound_summary',
+  );
+  assert.deepEqual(
+    compoundSummary.body.data.questionResult.values.podium.map((entry) => [
+      entry.position,
+      entry.driver,
+      entry.points,
+    ]),
+    [
+      [1, 'Example One', 25],
+      [2, 'Example Two', 18],
+      [3, 'Example Three', 15],
+    ],
+  );
+  assert.equal(
+    compoundSummary.body.data.questionResult.values.fastestLapDrivers,
+    'Example Two',
+  );
+  repository.sets.set(`results:${sessionId}`, originalCompoundResults);
+
+  const fastestLeaderboardKeys = [2018, 2019, 2020].map(
+    (year) => `results:session:event:${year}:leaderboard-grand-prix:race`,
+  );
+  fastestLeaderboardKeys.forEach((key, index) => {
+    const year = 2018 + index;
+    const leaderboardSet = JSON.parse(JSON.stringify(originalCompoundResults));
+    leaderboardSet.key = key;
+    leaderboardSet.items = [
+      {
+        ...leaderboardSet.items[0],
+        id: `${key}:example-one`,
+        sessionId: `session:event:${year}:leaderboard-grand-prix:race`,
+        entry: {
+          ...leaderboardSet.items[0].entry,
+          constructor: {
+            id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
+            displayName: index === 2 ? 'Second Team' : 'Example Team',
+          },
+          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+        },
+        fastestLap: { rank: 1, lapNumber: 20 + index, durationMs: 90000 + index },
+      },
+    ];
+  repository.sets.set(key, leaderboardSet);
+  });
+
+  const fastestLapLeaderboard = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'Between 2018 and 2020, which driver recorded the most fastest laps, how many did they set, and which constructor did they drive for when they set them?',
+    })
+    .expect(200);
+  assert.equal(
+    fastestLapLeaderboard.body.data.questionResult.resolvedIntent,
+    'fastest_lap_leaderboard',
+  );
+  assert.deepEqual(fastestLapLeaderboard.body.data.questionResult.values.leaders, [
+    {
+      driver: 'Example One',
+      count: 3,
+      constructors: 'Example Team: 2; Second Team: 1',
+    },
+  ]);
+  fastestLeaderboardKeys.forEach((key) => repository.sets.delete(key));
+
+  const podiumLeaderboardKeys = [2015, 2016, 2017].map(
+    (year) => `results:session:event:${year}:podium-leaderboard-grand-prix:race`,
+  );
+  podiumLeaderboardKeys.forEach((key, index) => {
+    const year = 2015 + index;
+    const leaderboardSet = JSON.parse(JSON.stringify(originalCompoundResults));
+    leaderboardSet.key = key;
+    leaderboardSet.items = [
+      {
+        ...leaderboardSet.items[0],
+        id: `${key}:example-one`,
+        sessionId: `session:event:${year}:podium-leaderboard-grand-prix:race`,
+        position: index === 0 ? 1 : 2,
+        entry: {
+          ...leaderboardSet.items[0].entry,
+          constructor: {
+            id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
+            displayName: index === 2 ? 'Second Team' : 'Example Team',
+          },
+          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+        },
+      },
+    ];
+    repository.sets.set(key, leaderboardSet);
+  });
+
+  const podiumLeaderboard = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'Between 2015 and 2017, which driver recorded the most podium finishes, how many did they have, and which constructor did they represent in those podium results?',
+    })
+    .expect(200);
+  assert.equal(podiumLeaderboard.body.data.questionResult.resolvedIntent, 'podium_leaderboard');
+  assert.deepEqual(podiumLeaderboard.body.data.questionResult.values.leaders, [
+    {
+      driver: 'Example One',
+      count: 3,
+      constructors: 'Example Team: 2; Second Team: 1',
+    },
+  ]);
+  podiumLeaderboardKeys.forEach((key) => repository.sets.delete(key));
+
+  const raceWinLeaderboardKeys = [2018, 2019, 2020].map(
+    (year) => `results:session:event:${year}:win-leaderboard-grand-prix:race`,
+  );
+  raceWinLeaderboardKeys.forEach((key, index) => {
+    const year = 2018 + index;
+    const leaderboardSet = JSON.parse(JSON.stringify(originalCompoundResults));
+    leaderboardSet.key = key;
+    leaderboardSet.items = [
+      {
+        ...leaderboardSet.items[0],
+        id: `${key}:example-one`,
+        sessionId: `session:event:${year}:win-leaderboard-grand-prix:race`,
+        position: 1,
+        entry: {
+          ...leaderboardSet.items[0].entry,
+          constructor: {
+            id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
+            displayName: index === 2 ? 'Second Team' : 'Example Team',
+          },
+          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+        },
+      },
+    ];
+    repository.sets.set(key, leaderboardSet);
+  });
+
+  const raceWinLeaderboard = await request(app)
+    .post('/api/v1/questions')
+    .send({
+      text: 'Between 2018 and 2020, which driver won the most races, how many victories did they record, and which constructor did they win for?',
+    })
+    .expect(200);
+  assert.equal(raceWinLeaderboard.body.data.questionResult.resolvedIntent, 'race_win_leaderboard');
+  assert.deepEqual(raceWinLeaderboard.body.data.questionResult.values.leaders, [
+    {
+      driver: 'Example One',
+      count: 3,
+      constructors: 'Example Team: 2; Second Team: 1',
+    },
+  ]);
+  raceWinLeaderboardKeys.forEach((key) => repository.sets.delete(key));
 
   const mostPitStops = await request(app)
     .post('/api/v1/questions')

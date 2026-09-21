@@ -1,4 +1,5 @@
 import { OpenAIQuestionInterpreter } from '../providers/openai/question-interpreter.js';
+import { OpenAIEmbeddingClient } from '../providers/openai/embeddings.js';
 
 const emptyContext = {
   year: null,
@@ -23,6 +24,28 @@ function humanList(items) {
   if (values.length < 2) return values[0] || 'Not supplied';
   if (values.length === 2) return values.join(' and ');
   return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
+}
+
+function fallbackSuggestion({ status, reasonCode }) {
+  if (status === 'clarification')
+    return 'Try adding a year, event, driver, constructor or specific metric to the question.';
+
+  if (reasonCode === 'QUESTION_INTERPRETER_UNAVAILABLE')
+    return 'Try again or reword it as: “Which circuit hosted the 2022 Italian Grand Prix?”';
+
+  if (reasonCode === 'QUESTION_INTERPRETER_DISABLED')
+    return 'Try rewording it as: “Who won the 2022 Italian Grand Prix?”';
+
+  if (reasonCode === 'QUESTION_INTENT_UNSUPPORTED')
+    return 'Try rewording it as: “Which circuit hosted the 2022 Italian Grand Prix?”';
+
+  if (reasonCode && /NOT_PUBLISHED|SOURCE_COVERAGE|UNAVAILABLE/.test(reasonCode))
+    return 'Try a published season from 2000 onward, such as: “Who won the 2022 Italian Grand Prix?”';
+
+  if (status === 'unsupported' || status === 'unavailable')
+    return 'Try rewording it as one specific archive question, such as: “Who won the 2022 Italian Grand Prix?”';
+
+  return null;
 }
 
 const numberWords = {
@@ -70,6 +93,40 @@ function parseHostedCircuitQuestion(text, context) {
     toYear: range.toYear,
     clarificationNeeded: false,
   };
+}
+
+function parseCompoundEventQuestion(lower) {
+  const asksForPodium = /\b(?:top\s+three|podium|finishers?)\b/.test(lower);
+  const asksForConstructors = /\b(?:constructors?|manufacturers?|teams?)\b/.test(lower);
+  const asksForPoints = /\bpoints?\b/.test(lower);
+  const asksForFastestLap = /\bfastest\s+lap\b/.test(lower);
+  if (!asksForPodium || !asksForConstructors || !asksForPoints || !asksForFastestLap)
+    return null;
+  return { intent: 'event_compound_summary' };
+}
+
+function parseFastestLapLeaderboardQuestion(lower) {
+  const asksForDriver = /\bwho\b|\bwhich\s+driver\b/.test(lower);
+  const asksForMost = /\b(?:most|highest|greatest)\b/.test(lower);
+  if (!asksForDriver || !asksForMost || !/\bfastest\s+laps?\b/.test(lower)) return null;
+  return { intent: 'fastest_lap_leaderboard' };
+}
+
+function parsePodiumLeaderboardQuestion(lower) {
+  const asksForDriver = /\bwho\b|\bwhich\s+driver\b/.test(lower);
+  const asksForMost = /\b(?:most|highest|greatest)\b/.test(lower);
+  const asksForPodiums = /\bpodiums?\b|\bpodium\s+finishes?\b/.test(lower);
+  if (!asksForDriver || !asksForMost || !asksForPodiums || /\bposition\b/.test(lower))
+    return null;
+  return { intent: 'podium_leaderboard' };
+}
+
+function parseRaceWinLeaderboardQuestion(lower) {
+  const asksForDriver = /\bwho\b|\bwhich\s+driver\b/.test(lower);
+  const asksForMost = /\b(?:most|highest|greatest)\b/.test(lower);
+  const asksForWins = /\b(?:won|wins?|victories|race\s+wins?)\b/.test(lower);
+  if (!asksForDriver || !asksForMost || !asksForWins) return null;
+  return { intent: 'race_win_leaderboard' };
 }
 
 function sessionEventId(sessionId) {
@@ -185,42 +242,57 @@ function formatDuration(milliseconds) {
 }
 
 export class QuestionService {
-  constructor(repository, { config = {} } = {}) {
+  constructor(repository, { config = {}, questionRepository = null, interpreter = null } = {}) {
     this.repository = repository;
+    this.questionRepository = questionRepository;
     this.interpreter =
-      config.openaiEnabled && config.openaiApiKey
+      interpreter ||
+      (config.openaiEnabled && config.openaiApiKey
         ? new OpenAIQuestionInterpreter({
             apiKey: config.openaiApiKey,
             model: config.openaiModel,
             reasoningEffort: config.openaiReasoningEffort,
             timeoutMs: config.openaiTimeoutMs,
           })
+        : null);
+    this.embeddingClient =
+      config.questionRagEnabled !== false &&
+      config.openaiEnabled &&
+      config.openaiApiKey &&
+      questionRepository
+        ? new OpenAIEmbeddingClient({
+            apiKey: config.openaiApiKey,
+            model: config.openaiEmbeddingModel,
+            timeoutMs: config.openaiTimeoutMs,
+          })
         : null;
   }
 
-  async answer(body, { snapshot: _snapshot, get, keys }) {
+  async answer(body, { snapshot, get, keys }) {
     const text = String(body?.text || '').trim();
     const context = contextWith({
       ...body?.context,
       currentYear: new Date().getUTCFullYear(),
     });
     const deterministic = await this.interpretDeterministically(text, context, { get, keys });
-    if (deterministic) return deterministic;
+    if (deterministic) return this.withModelSuggestion(deterministic, { text, context });
 
     if (!this.interpreter)
       return this.result(
         {
           status: 'unavailable',
           message:
-            'This question needs the optional natural-language interpreter. Direct archive search is still available.',
+            'This question could not be mapped to a supported archive operation. Use Explore for record search.',
           reasonCode: 'QUESTION_INTERPRETER_DISABLED',
         },
         [],
       );
 
     try {
-      const intent = await this.interpreter.interpret({ text, context });
-      return this.executeIntent(intent, context, { get, keys }, text);
+      const candidates = await this.retrieveCandidates(text, snapshot?.id);
+      const intent = await this.interpreter.interpret({ text, context, candidates });
+      const result = await this.executeIntent(intent, context, { get, keys }, text);
+      return this.withModelSuggestion(result, { text, context });
     } catch {
       return this.result(
         {
@@ -233,11 +305,64 @@ export class QuestionService {
     }
   }
 
+  async retrieveCandidates(text, publicationId) {
+    if (!this.questionRepository || !this.embeddingClient || !publicationId) return [];
+    try {
+      const manifest = await this.questionRepository.manifest(publicationId);
+      if (manifest?.status !== 'ready') return [];
+      const [embedding] = await this.embeddingClient.embed(text);
+      return await this.questionRepository.search({
+        publicationId,
+        query: text,
+        embedding,
+        limit: 16,
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  async withModelSuggestion(result, { text, context }) {
+    if (result?.result?.status === 'answered' || typeof this.interpreter?.rephrase !== 'function')
+      return result;
+
+    try {
+      const generated = await this.interpreter.rephrase({
+        text,
+        context,
+        failure: {
+          status: result.result.status,
+          message: result.result.message,
+          reasonCode: result.result.reasonCode || null,
+        },
+      });
+      const suggestion = String(generated?.suggestion || '').trim();
+      if (!suggestion || suggestion.length > 300 || !suggestion.endsWith('?')) return result;
+      return {
+        ...result,
+        result: { ...result.result, suggestion },
+      };
+    } catch {
+      return result;
+    }
+  }
+
   async interpretDeterministically(text, context, helpers) {
     if (!text) return null;
     const lower = normalize(text);
     const hostedCircuit = parseHostedCircuitQuestion(text, context);
     if (hostedCircuit) return this.executeIntent(hostedCircuit, context, helpers, text);
+    const compoundEvent = parseCompoundEventQuestion(lower);
+    if (compoundEvent) return this.executeIntent(compoundEvent, context, helpers, text);
+    const fastestLapLeaderboard = parseFastestLapLeaderboardQuestion(lower);
+    if (fastestLapLeaderboard)
+      return this.executeIntent(fastestLapLeaderboard, context, helpers, text);
+    const podiumLeaderboard = parsePodiumLeaderboardQuestion(lower);
+    if (podiumLeaderboard)
+      return this.executeIntent(podiumLeaderboard, context, helpers, text);
+    const raceWinLeaderboard = parseRaceWinLeaderboardQuestion(lower);
+    if (raceWinLeaderboard)
+      return this.executeIntent(raceWinLeaderboard, context, helpers, text);
     const finishingPosition = parseFinishingPositionQuestion(lower);
     if (finishingPosition)
       return this.executeIntent(
@@ -251,6 +376,20 @@ export class QuestionService {
         helpers,
         text,
       );
+    if (/\bwho\s+won\b/.test(lower) && /\b(?:world|drivers?)\s+championship\b/.test(lower)) {
+      const range = yearRange(text, context);
+      return this.executeIntent(
+        {
+          intent: 'season_champion',
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+          originalText: text,
+        },
+        context,
+        helpers,
+        text,
+      );
+    }
     if (/\bwho\s+won\b|\bwinner\b/.test(lower)) {
       const circuitQuestion = await this.detectCircuitWinnerQuestion(text, helpers, context);
       if (circuitQuestion) return this.executeIntent(circuitQuestion, context, helpers, text);
@@ -332,7 +471,7 @@ export class QuestionService {
       }
     }
     if (
-      /\bwhen\b/.test(lower) &&
+      /\b(?:when|what)\b/.test(lower) &&
       /\b(last|most\s+recent)\b/.test(lower) &&
       /\b(win|won|victory)\b/.test(lower)
     ) {
@@ -353,6 +492,59 @@ export class QuestionService {
           text,
         );
     }
+    if (
+      /\b(?:when|what)\b/.test(lower) &&
+      /\b(last|most\s+recent|latest|final)\b/.test(lower) &&
+      /\b(race|grand\s+prix|start|drove|competed)\b/.test(lower)
+    ) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      if (driver)
+        return this.executeIntent(
+          {
+            intent: 'driver_last_race',
+            driverName: driver.entity.displayName,
+            originalText: text,
+          },
+          context,
+          helpers,
+          text,
+        );
+    }
+    if (
+      /\bhow\s+many\b/.test(lower) &&
+      /\b(?:manufacturers?|constructors?)\b/.test(lower) &&
+      /\b(?:race|raced|drive|drove|under|for)\b/.test(lower)
+    ) {
+      const { items } = await this.profiles(helpers);
+      const driver = items.find(
+        (profile) =>
+          profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+      );
+      if (driver)
+        return this.executeIntent(
+          {
+            intent: 'driver_constructor_count',
+            driverName: driver.entity.displayName,
+            fromYear: null,
+            toYear: null,
+            originalText: text,
+          },
+          context,
+          helpers,
+        text,
+      );
+    }
+    const constructorQuestion = await this.detectDriverConstructorQuestion(
+      text,
+      context,
+      helpers,
+    );
+    if (constructorQuestion)
+      return this.executeIntent(constructorQuestion, context, helpers, text);
     if (/\bpit\s+stops?\b/.test(lower)) {
       const metric = /\b(fastest|quickest)\b/.test(lower)
         ? 'fastest_pit_stop'
@@ -596,8 +788,6 @@ export class QuestionService {
           text,
         );
     }
-    if (/^((search|find|show|look up)\b|[a-z0-9]+([ ,+]+[a-z0-9]+){0,3}$)/i.test(text))
-      return this.executeIntent({ intent: 'archive_search', searchTerms: text }, context, helpers);
     return null;
   }
 
@@ -607,23 +797,36 @@ export class QuestionService {
         {
           status: 'clarification',
           message: intent.clarificationMessage || 'Please clarify what you want to find.',
-          choices: [
-            { label: 'Search archive records', context: contextWith({}) },
-            { label: 'Ask a supported archive question', context: contextWith({}) },
-          ],
+          choices: [{ label: 'Ask a supported archive question', context: contextWith({}) }],
         },
         [],
       );
-    if (intent?.intent === 'archive_search')
-      return this.archiveSearch(intent.searchTerms || originalText, context, { get, keys });
     if (intent?.intent === 'event_winner')
       return this.eventWinner(intent.eventName, context, originalText, { get, keys });
     if (intent?.intent === 'event_circuit')
       return this.eventCircuit(intent, context, originalText, { get, keys });
+    if (intent?.intent === 'season_champion')
+      return this.seasonChampion(intent, context, { get, keys }, originalText);
+    if (intent?.intent === 'constructor_championship_leaderboard')
+      return this.constructorChampionshipLeaderboard(intent, context, { get, keys }, originalText);
+    if (intent?.intent === 'constructor_rivalry_comparison')
+      return this.constructorRivalryComparison(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'driver_constructor_race_starts')
       return this.driverConstructorStarts(intent, context, { get, keys });
+    if (intent?.intent === 'driver_constructor_count')
+      return this.driverConstructorCount(intent, context, { get, keys });
+    if (intent?.intent === 'driver_constructor_breakdown')
+      return this.driverConstructorBreakdown(intent, context, { get, keys });
+    if (intent?.intent === 'driver_constructor_comparison')
+      return this.driverConstructorComparison(intent, context, { get, keys });
     if (intent?.intent === 'driver_last_win')
       return this.driverLastWin(intent, context, { get, keys });
+    if (intent?.intent === 'driver_last_race')
+      return this.driverRaceBoundary(intent, { get, keys }, 'last');
+    if (intent?.intent === 'driver_first_race')
+      return this.driverRaceBoundary(intent, { get, keys }, 'first');
+    if (intent?.intent === 'driver_first_win')
+      return this.driverWinBoundary(intent, { get, keys }, 'first');
     if (intent?.intent === 'driver_race_wins')
       return this.driverRaceWins(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'driver_race_wins_season')
@@ -636,6 +839,14 @@ export class QuestionService {
       return this.driverStat(intent, context, { get, keys }, originalText);
     if (intent?.intent === 'event_podium')
       return this.eventPodium(intent.eventName, context, originalText, { get, keys });
+    if (intent?.intent === 'event_compound_summary')
+      return this.eventCompoundSummary(context, originalText, { get, keys });
+    if (intent?.intent === 'fastest_lap_leaderboard')
+      return this.fastestLapLeaderboard(context, originalText, { get, keys });
+    if (intent?.intent === 'podium_leaderboard')
+      return this.podiumLeaderboard(context, originalText, { get, keys });
+    if (intent?.intent === 'race_win_leaderboard')
+      return this.raceWinLeaderboard(context, originalText, { get, keys });
     if (intent?.intent === 'event_pole')
       return this.eventPole(intent.eventName, context, originalText, { get, keys });
     if (intent?.intent === 'event_fastest_lap')
@@ -663,6 +874,51 @@ export class QuestionService {
   async profiles({ get, keys }) {
     const sets = await Promise.all((await keys('profile:')).map(get));
     return { sets, items: sets.flatMap((set) => set?.items || []) };
+  }
+
+  async detectDriverConstructorQuestion(text, context, helpers) {
+    const lower = normalize(text);
+    const asksComparison =
+      /\b(?:compare|comparison|differ|between|versus|vs)\b/.test(lower) &&
+      /\b(?:race|races|raced|statistics|stats|results|starts|wins|podiums|points)\b/.test(
+        lower,
+      );
+    const asksBreakdown =
+      /\b(?:each|every|all)\b/.test(lower) &&
+      /\b(?:manufacturers?|constructors?|teams?)\b/.test(lower) &&
+      /\b(?:race|races|raced|participate|participated|drive|drove|under|for)\b/.test(lower);
+    if (!asksComparison && !asksBreakdown) return null;
+
+    const { items } = await this.profiles(helpers);
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : items.find(
+          (profile) =>
+            profile.kind === 'driver' && lower.includes(normalize(profile.entity.displayName)),
+        );
+    if (!driver) return null;
+
+    const constructors = items.filter(
+      (profile) =>
+        profile.kind === 'constructor' && lower.includes(normalize(profile.entity.displayName)),
+    );
+    if (asksComparison && constructors.length >= 2)
+      return {
+        intent: 'driver_constructor_comparison',
+        driverName: driver.entity.displayName,
+        constructorNames: unique(constructors.map((profile) => profile.entity.displayName)),
+        ...yearRange(text, context),
+        originalText: text,
+      };
+
+    if (asksBreakdown)
+      return {
+        intent: 'driver_constructor_breakdown',
+        driverName: driver.entity.displayName,
+        ...yearRange(text, context),
+        originalText: text,
+      };
+    return null;
   }
 
   async detectCircuitWinnerQuestion(text, helpers, context) {
@@ -878,56 +1134,6 @@ export class QuestionService {
     );
   }
 
-  async archiveSearch(searchTerms, _context, { get, keys }) {
-    const terms = normalize(searchTerms)
-      .split(/\s+/)
-      .filter((term) => term.length >= 2);
-    const { sets, items: profiles } = await this.profiles({ get, keys });
-    const eventSets = await Promise.all((await keys('events:')).map(get));
-    const events = eventSets.flatMap((set) =>
-      (set?.items || []).map((event) => ({
-        id: event.id,
-        kind: 'event',
-        displayName: event.name,
-        context: String(event.year),
-        evidenceId: set.evidenceId,
-      })),
-    );
-    const records = [
-      ...profiles.map((profile) => ({
-        id: profile.id,
-        kind: profile.kind,
-        displayName: profile.entity.displayName,
-        context: null,
-        evidenceId: profile.evidenceId,
-      })),
-      ...events,
-    ];
-    const matches = records.filter((record) =>
-      terms.some((term) => normalize(`${record.displayName} ${record.id}`).includes(term)),
-    );
-    const names = unique(matches.map((record) => record.displayName)).slice(0, 5);
-    const evidenceIds = unique(matches.map((record) => record.evidenceId));
-    const answer = names.length
-      ? `I found ${matches.length} matching archive record${matches.length === 1 ? '' : 's'}: ${names.join(', ')}.`
-      : 'I could not find a matching published archive record.';
-    return this.result(
-      {
-        status: 'answered',
-        resolvedIntent: 'archive_search',
-        templateKey: 'archive_search_summary',
-        values: {
-          answer,
-          query: String(searchTerms).trim(),
-          resultCount: matches.length,
-          matches: names.join(', ') || 'None',
-        },
-        evidenceIds,
-      },
-      [...sets, ...eventSets],
-    );
-  }
-
   async resolveEvent(eventName, context, text, { get, keys }) {
     if (context.eventId) {
       const detail = await get(`event:${context.eventId}`);
@@ -1136,6 +1342,95 @@ export class QuestionService {
           year: event?.year || null,
           podium: podium.map((entry) => `P${entry.position} ${entry.driver}`).join('; '),
           missingPositions: missingPositions.join(', ') || 'None',
+        },
+        evidenceIds: unique([resolved.set?.evidenceId, resultSet?.evidenceId, detail?.evidenceId]),
+      },
+      [resolved.set, resultSet, detail],
+    );
+  }
+
+  async eventCompoundSummary(context, text, helpers) {
+    const resolved = await this.resolveEvent(null, context, text, helpers);
+    if (!resolved)
+      return this.result(
+        { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
+        [],
+      );
+
+    const resultSet = await helpers.get(`results:${raceSessionId(resolved.eventId)}`);
+    const detail = await helpers.get(`event:${resolved.eventId}`);
+    const event =
+      detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
+    const rows = (resultSet?.items || [])
+      .filter((row) => Number.isInteger(row.position) && row.position >= 1 && row.position <= 3)
+      .sort((a, b) => a.position - b.position);
+    const podium = rows.flatMap((row) => {
+      const driver = driverNames(row)[0];
+      if (!driver) return [];
+      const numericPoints = Number(row.points);
+      return [
+        {
+          position: row.position,
+          driver: driver.displayName,
+          constructor: row.entry?.constructor?.displayName || 'Not supplied',
+          points: Number.isFinite(numericPoints) ? numericPoints : null,
+        },
+      ];
+    });
+    const fastestRows = (resultSet?.items || []).filter((row) => row.fastestLap?.rank === 1);
+    const fastestDrivers = unique(
+      fastestRows.flatMap((row) => driverNames(row).map((driver) => driver.displayName)),
+    );
+    const fastestLap = fastestRows[0]?.fastestLap || null;
+    if (!podium.length && !fastestDrivers.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The requested race details are not published for ${event?.name || 'that event'}.`,
+          reasonCode: 'EVENT_DETAILS_NOT_PUBLISHED',
+        },
+        [resolved.set, resultSet, detail],
+      );
+
+    const missingPositions = [1, 2, 3].filter(
+      (position) => !podium.some((entry) => entry.position === position),
+    );
+    const eventLabel = event?.year ? `${event.year} ${event.name}` : event?.name || 'The event';
+    const podiumAnswer = podium.length
+      ? podium
+          .map(
+            (entry) =>
+              `P${entry.position} ${entry.driver} (${entry.constructor}, ${entry.points == null ? 'points not published' : `${entry.points} points`})`,
+          )
+          .join('; ')
+      : 'not published';
+    const fastestAnswer = fastestDrivers.length
+      ? `${humanList(fastestDrivers)}${fastestLap?.lapNumber ? ` on lap ${fastestLap.lapNumber}` : ''}`
+      : 'not published';
+    const coverage = [resolved.set, resultSet, detail].some(
+      (set) => set?.coverage !== 'complete' || set?.warnings?.length,
+    )
+      ? 'partial'
+      : 'complete';
+
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'event_compound_summary',
+        templateKey: 'event_compound_summary',
+        values: {
+          answer: `${eventLabel} — podium: ${podiumAnswer}. Fastest lap: ${fastestAnswer}.`,
+          event: event?.name || 'Not supplied',
+          year: event?.year || null,
+          podium,
+          missingPositions: missingPositions.join(', ') || 'None',
+          fastestLapDrivers: fastestDrivers.join(', ') || 'Not supplied',
+          fastestLapNumber: fastestLap?.lapNumber ?? null,
+          fastestLapDurationMs: fastestLap?.durationMs ?? null,
+          coverage,
+          ...(coverage === 'partial'
+            ? { coverageNote: 'The answer uses the published race-result and event-detail rows.' }
+            : {}),
         },
         evidenceIds: unique([resolved.set?.evidenceId, resultSet?.evidenceId, detail?.evidenceId]),
       },
@@ -1864,6 +2159,215 @@ export class QuestionService {
     );
   }
 
+  rankDriverResultRows(rows) {
+    const drivers = new Map();
+    for (const row of rows) {
+      const eventId = sessionEventId(row.sessionId);
+      if (!eventId) continue;
+      const constructor = row.entry?.constructor;
+      for (const driver of driverNames(row)) {
+        const record =
+          drivers.get(driver.id) || {
+            driver: driver.displayName,
+            events: new Set(),
+            constructors: new Map(),
+          };
+        if (record.events.has(eventId)) continue;
+        record.events.add(eventId);
+        const constructorId = constructor?.id || constructor?.displayName || 'unknown';
+        const constructorRecord =
+          record.constructors.get(constructorId) || {
+            constructor: constructor?.displayName || 'Not supplied',
+            events: new Set(),
+          };
+        constructorRecord.events.add(eventId);
+        record.constructors.set(constructorId, constructorRecord);
+        drivers.set(driver.id, record);
+      }
+    }
+
+    return [...drivers.values()]
+      .map((record) => ({
+        driver: record.driver,
+        count: record.events.size,
+        constructors: [...record.constructors.values()]
+          .map((entry) => ({ constructor: entry.constructor, count: entry.events.size }))
+          .sort((a, b) => b.count - a.count || a.constructor.localeCompare(b.constructor))
+          .map((entry) => `${entry.constructor}: ${entry.count}`)
+          .join('; '),
+      }))
+      .sort((a, b) => b.count - a.count || a.driver.localeCompare(b.driver));
+  }
+
+  async fastestLapLeaderboard(_context, originalText, { get, keys }) {
+    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const rows = resultSets.flatMap((set) =>
+      (set?.items || []).filter((row) => {
+        const year = yearFromEventId(sessionEventId(row.sessionId));
+        return (
+          isRaceRow(row) &&
+          row.fastestLap?.rank === 1 &&
+          (!range.fromYear || year >= range.fromYear) &&
+          (!range.toYear || year <= range.toYear)
+        );
+      }),
+    );
+    const ranked = this.rankDriverResultRows(rows);
+    const highest = ranked[0]?.count || 0;
+    const leaders = ranked.filter((entry) => entry.count === highest);
+    if (!leaders.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: 'Fastest-lap results are not published for the requested period.',
+          reasonCode: 'FASTEST_LAPS_NOT_PUBLISHED',
+        },
+        resultSets,
+      );
+
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' in the published archive';
+    const leaderAnswer = leaders
+      .map(
+        (leader) =>
+          `${leader.driver} recorded ${leader.count} fastest lap${leader.count === 1 ? '' : 's'}${leader.constructors ? ` (${leader.constructors})` : ''}`,
+      )
+      .join('; ');
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'fastest_lap_leaderboard',
+        templateKey: 'fastest_lap_leaderboard',
+        values: {
+          answer: `${leaderAnswer}${period}.`,
+          metric: 'fastest_laps',
+          leaders,
+          count: highest,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+          tied: leaders.length > 1,
+        },
+        evidenceIds: unique(resultSets.map((set) => set?.evidenceId)).slice(0, 12),
+      },
+      resultSets,
+    );
+  }
+
+  async podiumLeaderboard(_context, originalText, { get, keys }) {
+    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const rows = resultSets.flatMap((set) =>
+      (set?.items || []).filter((row) => {
+        const year = yearFromEventId(sessionEventId(row.sessionId));
+        return (
+          isRaceStart(row) &&
+          row.position >= 1 &&
+          row.position <= 3 &&
+          (!range.fromYear || year >= range.fromYear) &&
+          (!range.toYear || year <= range.toYear)
+        );
+      }),
+    );
+    const ranked = this.rankDriverResultRows(rows);
+    const highest = ranked[0]?.count || 0;
+    const leaders = ranked.filter((entry) => entry.count === highest);
+    if (!leaders.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: 'Podium results are not published for the requested period.',
+          reasonCode: 'PODIUMS_NOT_PUBLISHED',
+        },
+        resultSets,
+      );
+
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' in the published archive';
+    const leaderAnswer = leaders
+      .map(
+        (leader) =>
+          `${leader.driver} recorded ${leader.count} podium finish${leader.count === 1 ? '' : 'es'}${leader.constructors ? ` (${leader.constructors})` : ''}`,
+      )
+      .join('; ');
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'podium_leaderboard',
+        templateKey: 'podium_leaderboard',
+        values: {
+          answer: `${leaderAnswer}${period}.`,
+          metric: 'podiums',
+          leaders,
+          count: highest,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+          tied: leaders.length > 1,
+        },
+        evidenceIds: unique(resultSets.map((set) => set?.evidenceId)).slice(0, 12),
+      },
+      resultSets,
+    );
+  }
+
+  async raceWinLeaderboard(_context, originalText, { get, keys }) {
+    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const rows = resultSets.flatMap((set) =>
+      (set?.items || []).filter((row) => {
+        const year = yearFromEventId(sessionEventId(row.sessionId));
+        return (
+          isRaceStart(row) &&
+          row.position === 1 &&
+          (!range.fromYear || year >= range.fromYear) &&
+          (!range.toYear || year <= range.toYear)
+        );
+      }),
+    );
+    const ranked = this.rankDriverResultRows(rows);
+    const highest = ranked[0]?.count || 0;
+    const leaders = ranked.filter((entry) => entry.count === highest);
+    if (!leaders.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: 'Race-win results are not published for the requested period.',
+          reasonCode: 'RACE_WINS_NOT_PUBLISHED',
+        },
+        resultSets,
+      );
+
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' in the published archive';
+    const leaderAnswer = leaders
+      .map(
+        (leader) =>
+          `${leader.driver} won ${leader.count} race${leader.count === 1 ? '' : 's'}${leader.constructors ? ` (${leader.constructors})` : ''}`,
+      )
+      .join('; ');
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'race_win_leaderboard',
+        templateKey: 'race_win_leaderboard',
+        values: {
+          answer: `${leaderAnswer}${period}.`,
+          metric: 'race_wins',
+          leaders,
+          count: highest,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+          tied: leaders.length > 1,
+        },
+        evidenceIds: unique(resultSets.map((set) => set?.evidenceId)).slice(0, 12),
+      },
+      resultSets,
+    );
+  }
+
   async driverStat(intent, context, { get, keys }, originalText = '') {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = context.driverId
@@ -2018,6 +2522,280 @@ export class QuestionService {
         ]).slice(0, 12),
       },
       [...sets, ...relevantSets],
+    );
+  }
+
+  async seasonChampion(intent, context, { get, keys }, originalText = '') {
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(originalText, context);
+    if (!Number.isInteger(range.fromYear) || range.fromYear !== range.toYear)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which championship season do you mean?',
+          choices: [],
+        },
+        [],
+      );
+    const sets = await Promise.all((await keys(`standings:${range.fromYear}:drivers`)).map(get));
+    const standingSet = sets.find((set) => (set?.items || []).length);
+    const champion = standingSet?.items?.find((row) => row.rank === 1 && row.entity);
+    if (!champion)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The archive does not publish the ${range.fromYear} drivers' championship result.`,
+          reasonCode: 'CHAMPIONSHIP_NOT_PUBLISHED',
+        },
+        sets,
+      );
+    const name = champion.entity.displayName;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'season_champion',
+        templateKey: 'season_champion',
+        values: {
+          answer: `${name} won the ${range.fromYear} Formula One World Championship.`,
+          champion: name,
+          driver: name,
+          year: range.fromYear,
+          metric: 'world_championship',
+        },
+        evidenceIds: unique(sets.map((set) => set?.evidenceId)),
+      },
+      sets,
+    );
+  }
+
+  async constructorChampionshipLeaderboard(intent, context, { get }, originalText = '') {
+    const range =
+      Number.isInteger(intent.fromYear) && Number.isInteger(intent.toYear)
+        ? { fromYear: intent.fromYear, toYear: intent.toYear }
+        : yearRange(originalText, context);
+    if (
+      !Number.isInteger(range.fromYear) ||
+      !Number.isInteger(range.toYear) ||
+      range.fromYear > range.toYear
+    )
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which completed seasons should be included?',
+          choices: [],
+        },
+        [],
+      );
+
+    const sets = [];
+    const champions = new Map();
+    for (let year = range.fromYear; year <= range.toYear; year += 1) {
+      const set = await get(`standings:${year}:constructors`);
+      if (!set) continue;
+      sets.push(set);
+      const champion = set.items?.find((row) => row.rank === 1 && row.entity?.id);
+      if (!champion) continue;
+      const entry = champions.get(champion.entity.id) || {
+        id: champion.entity.id,
+        name: champion.entity.displayName,
+        seasons: [],
+      };
+      entry.seasons.push(year);
+      champions.set(champion.entity.id, entry);
+    }
+
+    const leaders = [...champions.values()]
+      .map((entry) => ({ ...entry, titleCount: entry.seasons.length }))
+      .sort((a, b) => b.titleCount - a.titleCount || a.name.localeCompare(b.name));
+    const titleCount = leaders[0]?.titleCount || 0;
+    const topLeaders = leaders.filter((entry) => entry.titleCount === titleCount);
+    if (!topLeaders.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The archive does not publish constructors' championship standings from ${range.fromYear} to ${range.toYear}.`,
+          reasonCode: 'CONSTRUCTOR_CHAMPIONSHIP_NOT_PUBLISHED',
+        },
+        sets,
+      );
+
+    const names = topLeaders.map((entry) => entry.name);
+    const answer =
+      topLeaders.length === 1
+        ? `${names[0]} won ${titleCount} constructors' title${titleCount === 1 ? '' : 's'} from ${range.fromYear} to ${range.toYear}.`
+        : `${humanList(names)} each won ${titleCount} constructors' titles from ${range.fromYear} to ${range.toYear}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'constructor_championship_leaderboard',
+        templateKey: 'constructor_championship_leaderboard',
+        values: {
+          answer,
+          constructor: names.join(', '),
+          constructors: names.join(', '),
+          metric: 'constructors_titles',
+          titleCount,
+          leaders: topLeaders.map((entry) => ({
+            constructor: entry.name,
+            titleCount: entry.titleCount,
+            seasons: entry.seasons.join(', '),
+          })),
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique(sets.map((set) => set?.evidenceId)),
+      },
+      sets,
+    );
+  }
+
+  async constructorRivalryComparison(intent, context, { get, keys }, originalText = '') {
+    const range =
+      Number.isInteger(intent.fromYear) && Number.isInteger(intent.toYear)
+        ? { fromYear: intent.fromYear, toYear: intent.toYear }
+        : yearRange(originalText, context);
+    if (
+      !Number.isInteger(range.fromYear) ||
+      !Number.isInteger(range.toYear) ||
+      range.fromYear > range.toYear
+    )
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which completed seasons should be included?',
+          choices: [],
+        },
+        [],
+      );
+
+    const standingsSets = [];
+    const titleCounts = new Map();
+    for (let year = range.fromYear; year <= range.toYear; year += 1) {
+      const set = await get(`standings:${year}:constructors`);
+      if (!set) continue;
+      standingsSets.push(set);
+      const champion = set.items?.find((row) => row.rank === 1 && row.entity?.id);
+      if (!champion) continue;
+      const entry = titleCounts.get(champion.entity.id) || {
+        id: champion.entity.id,
+        name: champion.entity.displayName,
+        titles: 0,
+      };
+      entry.titles += 1;
+      titleCounts.set(champion.entity.id, entry);
+    }
+
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const inRange = (row) => {
+      if (!isRaceRow(row)) return false;
+      const year = yearFromEventId(sessionEventId(row.sessionId));
+      return Number.isInteger(year) && year >= range.fromYear && year <= range.toYear;
+    };
+    const relevantResultSets = resultSets.filter((set) => (set?.items || []).some(inRange));
+    const wins = new Map();
+    for (const row of relevantResultSets.flatMap((set) => (set?.items || []).filter(inRange))) {
+      if (!isRaceStart(row) || row.position !== 1 || !row.entry?.constructor?.id) continue;
+      const constructor = row.entry.constructor;
+      const entry = wins.get(constructor.id) || {
+        id: constructor.id,
+        name: constructor.displayName,
+        wins: 0,
+      };
+      entry.wins += 1;
+      wins.set(constructor.id, entry);
+    }
+
+    if (!standingsSets.length || !relevantResultSets.length)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The archive does not publish both constructor wins and championship standings from ${range.fromYear} to ${range.toYear}.`,
+          reasonCode: 'CONSTRUCTOR_RIVALRY_NOT_PUBLISHED',
+        },
+        [...standingsSets, ...relevantResultSets],
+      );
+
+    const stats = [...new Set([...wins.keys(), ...titleCounts.keys()])]
+      .map((id) => {
+        const winEntry = wins.get(id);
+        const titleEntry = titleCounts.get(id);
+        return {
+          id,
+          constructor: winEntry?.name || titleEntry?.name || 'Not supplied',
+          wins: winEntry?.wins || 0,
+          titles: titleEntry?.titles || 0,
+        };
+      })
+      // A “world titles” rivalry must involve constructors that actually won a
+      // title in the period; otherwise two low-volume teams with matching
+      // zero-title totals would beat the championship contenders.
+      .filter((entry) => entry.titles > 0);
+    if (stats.length < 2)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `The archive does not publish enough championship-winning constructor data to compare rivals from ${range.fromYear} to ${range.toYear}.`,
+          reasonCode: 'CONSTRUCTOR_RIVALRY_NOT_PUBLISHED',
+        },
+        [...standingsSets, ...relevantResultSets],
+      );
+
+    const maxWins = Math.max(1, ...stats.map((entry) => entry.wins));
+    const maxTitles = Math.max(1, ...stats.map((entry) => entry.titles));
+    const pairs = [];
+    for (let leftIndex = 0; leftIndex < stats.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < stats.length; rightIndex += 1) {
+        const left = stats[leftIndex];
+        const right = stats[rightIndex];
+        const winsGap = Math.abs(left.wins - right.wins);
+        const titlesGap = Math.abs(left.titles - right.titles);
+        pairs.push({
+          left,
+          right,
+          winsGap,
+          titlesGap,
+          distance: winsGap / maxWins + titlesGap / maxTitles,
+          combinedAchievement: left.wins + right.wins + left.titles + right.titles,
+        });
+      }
+    }
+    pairs.sort(
+      (a, b) =>
+        a.distance - b.distance ||
+        b.combinedAchievement - a.combinedAchievement ||
+        `${a.left.constructor}:${a.right.constructor}`.localeCompare(
+          `${b.left.constructor}:${b.right.constructor}`,
+        ),
+    );
+    const closest = pairs[0];
+    const competitors = [closest.left, closest.right].sort((a, b) =>
+      a.constructor.localeCompare(b.constructor),
+    );
+    const answer = `${competitors[0].constructor} and ${competitors[1].constructor} were the closest constructor rivals from ${range.fromYear} to ${range.toYear}, with ${competitors[0].wins} and ${competitors[1].wins} race wins and ${competitors[0].titles} and ${competitors[1].titles} constructors' titles respectively. Their gaps were ${closest.winsGap} race win${closest.winsGap === 1 ? '' : 's'} and ${closest.titlesGap} title${closest.titlesGap === 1 ? '' : 's'}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'constructor_rivalry_comparison',
+        templateKey: 'constructor_rivalry_comparison',
+        values: {
+          answer,
+          metric: 'constructor_rivalry',
+          competitors,
+          comparison: {
+            winsGap: closest.winsGap,
+            titlesGap: closest.titlesGap,
+          },
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique([
+          ...standingsSets.map((set) => set?.evidenceId),
+          ...relevantResultSets.map((set) => set?.evidenceId),
+        ]).slice(0, 24),
+      },
+      [...standingsSets, ...relevantResultSets],
     );
   }
 
@@ -2213,6 +2991,259 @@ export class QuestionService {
     );
   }
 
+  async driverConstructorCount(intent, context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        { status: 'clarification', message: 'Which driver do you mean?', choices: [] },
+        sets,
+      );
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(intent.originalText || '', context);
+    const resultKeys = (await keys('results:')).filter((key) => {
+      const yearMatch = String(key).match(/:event:(\d{4}):/);
+      if (!yearMatch) return true;
+      const year = Number(yearMatch[1]);
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+    });
+    const resultSets = await Promise.all(resultKeys.map(get));
+    const constructors = new Map();
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !isRaceStart(row) ||
+          !row.entry?.constructor?.id ||
+          !row.entry.drivers?.some((entryDriver) => entryDriver.id === driver.id)
+        )
+          continue;
+        const constructor = row.entry.constructor;
+        constructors.set(constructor.id, constructor.displayName);
+      }
+    }
+    const names = [...constructors.values()].sort((a, b) => a.localeCompare(b));
+    const count = names.length;
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : '';
+    const answer = count
+      ? `Within the published archive${period || ' from 2000 onward'}, ${driver.entity.displayName} raced under ${count} constructor${count === 1 ? '' : 's'}: ${names.join(', ')}.`
+      : `${driver.entity.displayName} has no published constructor participation${period}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_constructor_count',
+        templateKey: 'driver_constructor_count',
+        values: {
+          answer,
+          driver: driver.entity.displayName,
+          driverId: driver.id,
+          metric: 'constructors',
+          constructors: names.join(', ') || 'None published',
+          count,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique([
+          ...resultSets.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets],
+    );
+  }
+
+  async driverConstructorBreakdown(intent, context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        { status: 'clarification', message: 'Which driver do you mean?', choices: [] },
+        sets,
+      );
+
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(intent.originalText || '', context);
+    const resultKeys = (await keys('results:')).filter((key) => {
+      const yearMatch = String(key).match(/:event:(\d{4}):/);
+      if (!yearMatch) return true;
+      const year = Number(yearMatch[1]);
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+    });
+    const resultSets = await Promise.all(resultKeys.map(get));
+    const stats = this.collectDriverConstructorStats(driver.id, resultSets);
+    const breakdown = [...stats.values()]
+      .map((entry) => ({
+        constructor: entry.name,
+        raceStarts: entry.events.size,
+        wins: entry.wins,
+        podiums: entry.podiums,
+        points: entry.pointsAvailable ? entry.points : null,
+      }))
+      .sort((a, b) => a.constructor.localeCompare(b.constructor));
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' from 2000 onward';
+    const answer = breakdown.length
+      ? `Within the published archive${period}, ${driver.entity.displayName} made ${humanList(
+          breakdown.map(
+            (entry) =>
+              `${entry.raceStarts} race start${entry.raceStarts === 1 ? '' : 's'} for ${entry.constructor}`,
+          ),
+        )}.`
+      : `${driver.entity.displayName} has no published constructor participation${period}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_constructor_breakdown',
+        templateKey: 'driver_constructor_breakdown',
+        values: {
+          answer,
+          driver: driver.entity.displayName,
+          driverId: driver.id,
+          metric: 'race_starts_by_constructor',
+          breakdown,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique([
+          ...resultSets.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets],
+    );
+  }
+
+  async driverConstructorComparison(intent, context, { get, keys }) {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = context.driverId
+      ? items.find((profile) => profile.id === context.driverId)
+      : this.findProfile(items, 'driver', intent.driverName);
+    const constructorNames = unique(intent.constructorNames || []);
+    const constructors = constructorNames
+      .map((name) => this.findProfile(items, 'constructor', name))
+      .filter(Boolean);
+    if (!driver || constructors.length < 2)
+      return this.result(
+        {
+          status: 'clarification',
+          message: !driver
+            ? 'Which driver do you mean?'
+            : 'Please identify the two constructors to compare.',
+          choices: [],
+        },
+        sets,
+      );
+
+    const range =
+      intent.fromYear !== null && intent.fromYear !== undefined
+        ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
+        : yearRange(intent.originalText || '', context);
+    const resultKeys = (await keys('results:')).filter((key) => {
+      const yearMatch = String(key).match(/:event:(\d{4}):/);
+      if (!yearMatch) return true;
+      const year = Number(yearMatch[1]);
+      return (!range.fromYear || year >= range.fromYear) && (!range.toYear || year <= range.toYear);
+    });
+    const resultSets = await Promise.all(resultKeys.map(get));
+    const allStats = this.collectDriverConstructorStats(driver.id, resultSets);
+    const comparisons = constructors.map((constructor) => {
+      const entry = allStats.get(constructor.id) || {
+        name: constructor.entity.displayName,
+        events: new Set(),
+        wins: 0,
+        podiums: 0,
+        points: 0,
+        pointsAvailable: false,
+      };
+      return {
+        constructor: entry.name,
+        constructorId: constructor.id,
+        raceStarts: entry.events.size,
+        wins: entry.wins,
+        podiums: entry.podiums,
+        points: entry.pointsAvailable ? entry.points : null,
+      };
+    });
+    const period = range.fromYear
+      ? ` from ${range.fromYear}${range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
+      : ' from 2000 onward';
+    const lines = comparisons.map((entry) => {
+      const points = entry.points === null ? 'points not published' : `${entry.points} points`;
+      return `${entry.constructor}: ${entry.raceStarts} race starts, ${entry.wins} win${entry.wins === 1 ? '' : 's'}, ${entry.podiums} podium${entry.podiums === 1 ? '' : 's'}, ${points}`;
+    });
+    const answer = `Within the published archive${period}, ${driver.entity.displayName}'s race results compare as follows: ${lines.join('; ')}.`;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_constructor_comparison',
+        templateKey: 'driver_constructor_comparison',
+        values: {
+          answer,
+          driver: driver.entity.displayName,
+          driverId: driver.id,
+          metric: 'race_statistics',
+          comparisons,
+          fromYear: range.fromYear,
+          toYear: range.toYear,
+        },
+        evidenceIds: unique([
+          ...resultSets.map((set) => set?.evidenceId),
+          ...sets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets],
+    );
+  }
+
+  collectDriverConstructorStats(driverId, resultSets) {
+    const stats = new Map();
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !isRaceStart(row) ||
+          !row.entry?.constructor?.id ||
+          !row.entry.drivers?.some((entryDriver) => entryDriver.id === driverId)
+        )
+          continue;
+        const constructor = row.entry.constructor;
+        const eventId = sessionEventId(row.sessionId);
+        if (!eventId) continue;
+        if (!stats.has(constructor.id))
+          stats.set(constructor.id, {
+            name: constructor.displayName,
+            events: new Set(),
+            wins: 0,
+            podiums: 0,
+            points: 0,
+            pointsAvailable: false,
+          });
+        const entry = stats.get(constructor.id);
+        if (entry.events.has(eventId)) continue;
+        entry.events.add(eventId);
+        if (row.position === 1) entry.wins += 1;
+        if (row.position >= 1 && row.position <= 3) entry.podiums += 1;
+        if (row.points !== null && row.points !== undefined && row.points !== '') {
+          const points = Number(row.points);
+          if (Number.isFinite(points)) {
+            entry.points += points;
+            entry.pointsAvailable = true;
+          }
+        }
+      }
+    }
+    return stats;
+  }
+
   async driverLastWin(intent, _context, { get, keys }) {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = this.findProfile(items, 'driver', intent.driverName);
@@ -2288,6 +3319,166 @@ export class QuestionService {
         evidenceIds: unique([
           latest.resultSet.evidenceId,
           latest.detail.evidenceId,
+          ...sets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets, ...details],
+    );
+  }
+
+  async driverRaceBoundary(intent, { get, keys }, direction = 'last') {
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Which driver do you mean?',
+          choices: [],
+        },
+        sets,
+      );
+
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const races = [];
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !isRaceStart(row) ||
+          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driver.id)
+        )
+          continue;
+        const eventId = sessionEventId(row.sessionId);
+        if (eventId) races.push({ eventId, row, resultSet: set });
+      }
+    }
+    const details = await Promise.all(
+      [...new Set(races.map((race) => race.eventId))].map((eventId) => get(`event:${eventId}`)),
+    );
+    const detailsByEvent = new Map(
+      details
+        .map((set) => [set?.items?.[0]?.event?.id, { detail: set, event: set?.items?.[0]?.event }])
+        .filter(([eventId, value]) => eventId && value.event),
+    );
+    const datedRaces = races
+      .map((race) => ({ ...race, ...detailsByEvent.get(race.eventId) }))
+      .filter((race) => race.event)
+      .sort((a, b) => {
+        const aDate = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '') || 0;
+        const bDate = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '') || 0;
+        return (
+          (direction === 'first' ? aDate - bDate : bDate - aDate) ||
+          (direction === 'first' ? 1 : -1) * ((a.event.round || 0) - (b.event.round || 0))
+        );
+      });
+    const selected = datedRaces[0];
+    const label = direction === 'first' ? 'first' : 'last';
+    if (!selected)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `No published race was found for ${driver.entity.displayName}.`,
+          reasonCode: 'DRIVER_RACE_NOT_PUBLISHED',
+        },
+        [...sets, ...resultSets, ...details],
+      );
+    const event = selected.event;
+    const date = event.schedule?.date || null;
+    const constructor = selected.row.entry?.constructor?.displayName || null;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: direction === 'first' ? 'driver_first_race' : 'driver_last_race',
+        templateKey: direction === 'first' ? 'driver_first_race' : 'driver_last_race',
+        values: {
+          answer: `${driver.entity.displayName}'s ${label} published race was the ${event.name} on ${formatDate(date) || event.year}.`,
+          driver: driver.entity.displayName,
+          constructor,
+          event: event.name,
+          year: event.year,
+          date,
+          round: event.round,
+          circuit: event.circuit?.displayName || null,
+          scope: 'published archive',
+        },
+        evidenceIds: unique([
+          selected.resultSet.evidenceId,
+          selected.detail.evidenceId,
+          ...sets.map((set) => set?.evidenceId),
+        ]).slice(0, 12),
+      },
+      [...sets, ...resultSets, ...details],
+    );
+  }
+
+  async driverWinBoundary(intent, { get, keys }, direction = 'first') {
+    if (direction === 'last') return this.driverLastWin(intent, {}, { get, keys });
+    const { sets, items } = await this.profiles({ get, keys });
+    const driver = this.findProfile(items, 'driver', intent.driverName);
+    if (!driver)
+      return this.result(
+        { status: 'clarification', message: 'Which driver do you mean?', choices: [] },
+        sets,
+      );
+    const resultSets = await Promise.all((await keys('results:')).map(get));
+    const wins = [];
+    for (const set of resultSets) {
+      for (const row of set?.items || []) {
+        if (
+          !isRaceStart(row) ||
+          row.position !== 1 ||
+          !row.entry?.drivers?.some((entryDriver) => entryDriver.id === driver.id)
+        )
+          continue;
+        const eventId = sessionEventId(row.sessionId);
+        if (eventId) wins.push({ eventId, row, resultSet: set });
+      }
+    }
+    const details = await Promise.all(
+      [...new Set(wins.map((win) => win.eventId))].map((eventId) => get(`event:${eventId}`)),
+    );
+    const detailsByEvent = new Map(
+      details
+        .map((set) => [set?.items?.[0]?.event?.id, { detail: set, event: set?.items?.[0]?.event }])
+        .filter(([eventId, value]) => eventId && value.event),
+    );
+    const datedWins = wins
+      .map((win) => ({ ...win, ...detailsByEvent.get(win.eventId) }))
+      .filter((win) => win.event)
+      .sort((a, b) => {
+        const aDate = Date.parse(a.event.schedule?.startsAt || a.event.schedule?.date || '') || 0;
+        const bDate = Date.parse(b.event.schedule?.startsAt || b.event.schedule?.date || '') || 0;
+        return aDate - bDate || (a.event.round || 0) - (b.event.round || 0);
+      });
+    const selected = datedWins[0];
+    if (!selected)
+      return this.result(
+        {
+          status: 'unavailable',
+          message: `No published race win was found for ${driver.entity.displayName}.`,
+          reasonCode: 'DRIVER_WIN_NOT_PUBLISHED',
+        },
+        [...sets, ...resultSets, ...details],
+      );
+    const event = selected.event;
+    const date = event.schedule?.date || null;
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'driver_first_win',
+        templateKey: 'driver_first_win',
+        values: {
+          answer: `${driver.entity.displayName}'s first published win was the ${event.name} on ${formatDate(date) || event.year}.`,
+          driver: driver.entity.displayName,
+          event: event.name,
+          year: event.year,
+          date,
+          round: event.round,
+          circuit: event.circuit?.displayName || null,
+        },
+        evidenceIds: unique([
+          selected.resultSet.evidenceId,
+          selected.detail.evidenceId,
           ...sets.map((set) => set?.evidenceId),
         ]).slice(0, 12),
       },
@@ -2499,8 +3690,10 @@ export class QuestionService {
   result(questionResult, sets) {
     const available = sets.filter(Boolean);
     const first = available[0];
+    const suggestion =
+      questionResult.suggestion || fallbackSuggestion(questionResult);
     return {
-      result: questionResult,
+      result: suggestion ? { ...questionResult, suggestion } : questionResult,
       dataset: {
         items: [],
         coverage: available.length ? 'partial' : 'unavailable',

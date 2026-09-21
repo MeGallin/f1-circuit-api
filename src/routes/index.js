@@ -4,9 +4,14 @@ import { validation } from '../middleware/validate.js';
 import { readController } from '../controllers/read.controller.js';
 import { ReadService } from '../services/read.service.js';
 import { QuestionService } from '../services/question.service.js';
+import { QuestionRepository } from '../repositories/question.repository.js';
 export function createRouter(repository, { config = {} } = {}) {
   const router = Router();
-  const service = new ReadService(repository, new QuestionService(repository, { config }));
+  const questionRepository = repository.pool ? new QuestionRepository(repository.pool) : null;
+  const service = new ReadService(
+    repository,
+    new QuestionService(repository, { config, questionRepository }),
+  );
   for (const operation of operations) {
     const path = operation.path.replace(/\{([^}]+)\}/g, ':$1');
     router[operation.method](path, validation(operation), readController(service, operation));

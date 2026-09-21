@@ -100,6 +100,21 @@ export class SyncService {
       },
     ];
     const normalized = normalizeWeekend(bundle, { retrievedAt, sources });
+    for (const [kind, provenance] of Object.entries(bundle.standingProvenance || {})) {
+      for (let i = 0; i < normalized.sets.length; i++) {
+        const set = normalized.sets[i];
+        if (
+          set.key === `standings:${bundle.race.season}:${kind}` ||
+          set.key === `standings:${bundle.race.season}:${kind}:${bundle.race.round}`
+        )
+          normalized.sets[i] = dataset(
+            set.key,
+            set.schema,
+            set.items.map((row) => ({ ...row, evidenceId: null })),
+            provenance,
+          );
+      }
+    }
     return this.publishSets(normalized, bundle.observations || [], provider, version);
   }
   async publishSets(normalized, observations, provider, version = null) {

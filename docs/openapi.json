@@ -11574,6 +11574,51 @@
                     },
                     {
                       "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": ""
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": ""
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
                     }
                   ]
                 }
@@ -11607,6 +11652,11 @@
                 "type": "string",
                 "minLength": 1,
                 "description": ""
+              },
+              "suggestion": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A concrete way to reword the question when clarification is needed."
               },
               "choices": {
                 "type": "array",
@@ -11724,6 +11774,11 @@
                 "type": "string",
                 "minLength": 1,
                 "description": ""
+              },
+              "suggestion": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A concrete way to reword the question when the archive cannot answer it."
               },
               "reasonCode": {
                 "type": "string",

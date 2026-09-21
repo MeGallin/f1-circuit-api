@@ -9,8 +9,9 @@ import { ArchiveRepository } from '../src/repositories/archive.repository.js';
 import { SyncService } from '../src/services/sync.service.js';
 import { Jolpica } from '../src/providers/jolpica/client.js';
 import { ProviderHttp } from '../src/providers/http-client.js';
+import { BulkStandings } from '../src/providers/jolpica/bulk-standings.js';
 
-const [phase, runId] = process.argv.slice(2);
+const [phase, runId, bulkDirectory] = process.argv.slice(2);
 if (!['backbone', 'laps-pits'].includes(phase) || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(runId || '')) {
   console.error('Usage: node --env-file=.env scripts/archive.js backbone|laps-pits RUN_ID');
   process.exit(1);
@@ -21,6 +22,7 @@ try {
   const publication = await runSync(pool, 'archive-jolpica', `${phase}:${runId}`, async () => {
     const repository = new ArchiveRepository(pool);
     await repository.open(`${runId}-${phase}`, phase);
+    const bulkStandings = bulkDirectory ? await BulkStandings.load(bulkDirectory) : undefined;
     const provider = new Jolpica(
       new ArchiveCache(
         path.resolve('.cache', 'archive', runId, 'jolpica'),
@@ -32,6 +34,7 @@ try {
       repository,
       service: new SyncService(repository),
       phase,
+      bulkStandings,
       progress: (event) => console.log(JSON.stringify(event)),
     });
   });

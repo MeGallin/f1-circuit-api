@@ -35,6 +35,6 @@ Jolpica requests use a custom user agent, eight-second serialization, bounded pa
 4. Run imports from a separate approved scheduler/operator environment. No maintenance HTTP endpoint is exposed.
 5. Run health and known/unknown-resource/CORS smoke checks after deployment.
 
-The image uses an unprivileged node user and production dependencies only. No persistent volume is required. Logs omit queries, request bodies and credentials. No visitor analytics, tracking cookies or model layer is added. Shutdown stops HTTP intake and closes database connections with a bounded timeout.
+The image uses an unprivileged node user and production dependencies only. No persistent volume is required. Logs omit queries, request bodies and credentials. The optional question interpreter and fallback rephraser run server-side only when enabled; they do not receive database tools and do not provide final archive answers. No visitor analytics or tracking cookies are added. Shutdown stops HTTP intake and closes database connections with a bounded timeout.
 
 No Render or Supabase resources were provisioned. A running Docker engine and actual managed-database integration checks are still needed before deployment.

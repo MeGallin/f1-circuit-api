@@ -40,6 +40,8 @@ export function loadConfig(env = process.env) {
     openaiModel: env.OPENAI_MODEL || 'gpt-5.6-luna',
     openaiReasoningEffort: env.OPENAI_REASONING_EFFORT || 'max',
     openaiTimeoutMs: Number(env.OPENAI_TIMEOUT_MS || 10000),
+    openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+    questionRagEnabled: env.QUESTION_RAG_ENABLED !== 'false',
     poolSize: 5,
   };
 }
