@@ -24,7 +24,9 @@ driver comparison, season intelligence, and deterministic insights. Season
 intelligence contains the published season-progress totals, championship and
 constructor leaders, the latest completed race with its podium and fastest-lap
 attribution when present, and the next scheduled event with its circuit and
-race-start schedule. Each section reflects the
+race-start schedule. The season-intelligence breakdown also reports entries,
+starts, classified finishes, DNFs, wins, podiums, and fastest laps from the
+selected published result rows. Each section reflects the
 published archive and may be empty when the selected snapshot does not contain
 the required dataset.
 

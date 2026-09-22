@@ -40,6 +40,9 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(intelligence.latestRace.podium[0].constructorName, 'Example Team');
   assert.equal(intelligence.championshipLeader.driverName, 'Example One');
   assert.equal(intelligence.championshipLeader.points, 12.5);
+  assert.equal(intelligence.raceBreakdown.entries, 2);
+  assert.equal(intelligence.raceBreakdown.wins, 1);
+  assert.equal(intelligence.raceBreakdown.podiums, 2);
 });
 
 test('analytics dashboard respects driver and circuit filters', async () => {

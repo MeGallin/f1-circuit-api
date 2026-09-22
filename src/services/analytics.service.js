@@ -48,6 +48,13 @@ const eventOverview = (item) => {
     status: item.event.status,
     circuit: item.event.circuit || null,
     schedule: item.event.schedule || null,
+    sessionSchedule: (item.sessions || [])
+      .filter((session) => session.schedule?.startsAt || session.schedule?.date)
+      .map((session) => ({
+        kind: session.kind,
+        label: session.label,
+        schedule: session.schedule,
+      })),
     evidenceId: item.evidence?.evidenceId || null,
   };
 };
@@ -330,6 +337,20 @@ export class AnalyticsService {
     const completedEvents = raceContexts.filter(
       (item) => item.event.status === 'completed' || item.results.length,
     ).length;
+    const resultRows = raceContexts.flatMap((item) => item.rows);
+    const startedRows = resultRows.filter(
+      (row) => !['not-started', 'withdrawn', 'disqualified'].includes(row.status),
+    );
+    const classifiedRows = startedRows.filter(completedResult);
+    const raceBreakdown = {
+      entries: resultRows.length,
+      starts: startedRows.length,
+      classified: classifiedRows.length,
+      dnfs: Math.max(0, startedRows.length - classifiedRows.length),
+      wins: classifiedRows.filter((row) => row.position === 1).length,
+      podiums: classifiedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
+      fastestLaps: classifiedRows.filter((row) => row.fastestLap?.rank === 1).length,
+    };
     const dashboard = {
       filters,
       filterOptions: {
@@ -375,6 +396,10 @@ export class AnalyticsService {
               driverName: championshipLeader.name,
               points: championshipLeader.metrics.points,
               wins: championshipLeader.metrics.wins,
+              podiums: championshipLeader.metrics.podiums,
+              averageFinish: championshipLeader.metrics.averageFinish,
+              dnfRate: championshipLeader.metrics.dnfRate,
+              fastestLaps: championshipLeader.metrics.fastestLaps,
               constructor: driverConstructorMap.get(championshipLeader.id) || null,
             }
           : null,
@@ -387,6 +412,7 @@ export class AnalyticsService {
           : null,
         latestRace: raceOverview(latest),
         nextRace: eventOverview(next),
+        raceBreakdown,
       },
       pointsProgression: {
         events: progressionEvents.map((item) => ({
