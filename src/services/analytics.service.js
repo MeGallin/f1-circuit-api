@@ -410,6 +410,8 @@ export class AnalyticsService {
               averageFinish: championshipLeader.metrics.averageFinish,
               dnfRate: championshipLeader.metrics.dnfRate,
               fastestLaps: championshipLeader.metrics.fastestLaps,
+              positionsGained: championshipLeader.metrics.positionsGained,
+              recentForm: championshipLeader.metrics.recentForm,
               constructor: driverConstructorMap.get(championshipLeader.id) || null,
             }
           : null,
