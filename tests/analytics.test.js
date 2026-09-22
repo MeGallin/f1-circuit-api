@@ -43,6 +43,7 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(intelligence.raceBreakdown.entries, 2);
   assert.equal(intelligence.raceBreakdown.wins, 1);
   assert.equal(intelligence.raceBreakdown.podiums, 2);
+  assert.equal(response.body.data.analyticsDashboard.insights.length, 4);
 });
 
 test('analytics dashboard respects driver and circuit filters', async () => {

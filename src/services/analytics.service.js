@@ -437,9 +437,13 @@ export class AnalyticsService {
         latest
           ? `${latest.event.name} is the latest published event in this selection.`
           : 'No completed events are published for this selection.',
+        championshipLeader
+          ? `${championshipLeader.name} leads the selected driver standings with ${championshipLeader.metrics.points} published points.`
+          : 'Driver standings are unavailable for this selection.',
         constructorContribution[0]
           ? `${constructorContribution[0].constructorName} leads the selected race points contribution.`
           : 'Constructor contribution is unavailable for this selection.',
+        `${completedEvents} of ${context.events.length} events have published results in this selection.`,
       ],
     };
     return {
