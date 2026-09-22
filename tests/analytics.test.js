@@ -43,6 +43,10 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(intelligence.raceBreakdown.entries, 2);
   assert.equal(intelligence.raceBreakdown.wins, 1);
   assert.equal(intelligence.raceBreakdown.podiums, 2);
+  assert.equal(intelligence.latestRace.results.length, 2);
+  assert.equal(intelligence.latestRace.results[0].gridPosition, 1);
+  assert.equal(response.body.data.analyticsDashboard.quickStats.podiumRate, 100);
+  assert.equal(response.body.data.analyticsDashboard.quickStats.dnfRate, 0);
   assert.equal(response.body.data.analyticsDashboard.insights.length, 4);
 });
 

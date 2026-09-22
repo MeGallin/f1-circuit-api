@@ -22,6 +22,7 @@ const integer = (value, name, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) =
 };
 
 const numeric = (value) => (value == null || value === '' ? null : Number(value));
+const percentage = (value, total) => (total ? Math.round((value / total) * 1000) / 10 : null);
 const display = (entity) => entity?.displayName || entity?.name || entity?.id || null;
 const driverRows = (rows) =>
   rows.flatMap((row) =>
@@ -62,9 +63,10 @@ const eventOverview = (item) => {
 const raceOverview = (item) => {
   const event = eventOverview(item);
   if (!event) return null;
-  const podium = item.results
-    .filter((row) => completedResult(row) && row.position >= 1 && row.position <= 3)
+  const results = item.results
+    .filter((row) => completedResult(row))
     .sort((a, b) => a.position - b.position)
+    .slice(0, 5)
     .map((row) => {
       const driver = entryDriver(row);
       const constructor = entryConstructor(row);
@@ -75,13 +77,19 @@ const raceOverview = (item) => {
         constructorId: constructor?.id || null,
         constructorName: display(constructor),
         number: row.entry?.number || null,
+        gridPosition: row.grid?.position ?? null,
         points: numeric(row.points),
+        status: row.status || null,
+        statusLabel: row.statusLabel || null,
+        gap: row.gap || null,
       };
     });
+  const podium = results.filter((row) => row.position >= 1 && row.position <= 3);
   const fastest = item.results.find((row) => completedResult(row) && row.fastestLap?.rank === 1);
   const fastestDriver = entryDriver(fastest);
   return {
     ...event,
+    results,
     podium,
     fastestLap: fastest
       ? {
@@ -377,6 +385,8 @@ export class AnalyticsService {
         ).size,
         constructorCount: constructorTotals.size,
         circuitCount: circuitMap.size,
+        podiumRate: percentage(raceBreakdown.podiums, raceBreakdown.starts),
+        dnfRate: percentage(raceBreakdown.dnfs, raceBreakdown.starts),
       },
       latestHighlights: {
         latestCompleted: latest?.event || null,
