@@ -1833,6 +1833,82 @@
       ]
     },
     {
+      "name": "Success | getAnalyticsDashboard",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/analytics/dashboard" },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getAnalyticsDashboard",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/analytics/dashboard?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Success | getAnalyticsDriverComparison",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/analytics/driver-comparison"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getAnalyticsDriverComparison",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/analytics/driver-comparison?unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Health | live",
       "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/live" },
       "event": [

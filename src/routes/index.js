@@ -5,8 +5,10 @@ import { readController } from '../controllers/read.controller.js';
 import { ReadService } from '../services/read.service.js';
 import { QuestionService } from '../services/question.service.js';
 import { QuestionRepository } from '../repositories/question.repository.js';
+import { createAnalyticsRouter } from './analytics.js';
 export function createRouter(repository, { config = {} } = {}) {
   const router = Router();
+  router.use('/analytics', createAnalyticsRouter(repository));
   const questionRepository = repository.pool ? new QuestionRepository(repository.pool) : null;
   const service = new ReadService(
     repository,

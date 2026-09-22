@@ -8038,10 +8038,77 @@
           }
         }
       }
+    },
+    "/analytics/dashboard": {
+      "get": {
+        "operationId": "getAnalyticsDashboard",
+        "summary": "Read performance analytics",
+        "description": "Build a responsive analytics dashboard from the active published archive snapshot. Missing records remain explicit and are never inferred.",
+        "parameters": [
+          { "name": "season", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1900, "maximum": 2200 } },
+          { "name": "fromRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
+          { "name": "toRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
+          { "name": "driverIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
+          { "name": "constructorIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
+          { "name": "circuitIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
+          { "name": "sessionType", "in": "query", "required": false, "schema": { "type": "string", "enum": ["race", "qualifying", "sprint"], "default": "race" } },
+          { "name": "snapshotId", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 160 } },
+          { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string", "minLength": 1 } }
+        ],
+        "responses": {
+          "200": { "description": "Analytics dashboard envelope.", "headers": { "ETag": { "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/analyticsDashboardResponse" } } } },
+          "304": { "description": "Unchanged representation; no body." },
+          "400": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Unknown season or snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "description": "Internal error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        },
+        "x-reject-unknown-query-parameters": true
+      }
+    },
+    "/analytics/driver-comparison": {
+      "get": {
+        "operationId": "getAnalyticsDriverComparison",
+        "summary": "Compare driver performance",
+        "description": "Compare driver metrics calculated from published race results in the selected archive snapshot.",
+        "parameters": [
+          { "name": "season", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1900, "maximum": 2200 } },
+          { "name": "fromRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
+          { "name": "toRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
+          { "name": "drivers", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
+          { "name": "snapshotId", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 160 } },
+          { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string", "minLength": 1 } }
+        ],
+        "responses": {
+          "200": { "description": "Driver comparison envelope.", "headers": { "ETag": { "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/analyticsDriverComparisonResponse" } } } },
+          "304": { "description": "Unchanged representation; no body." },
+          "400": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Unknown season or snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "description": "Internal error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        },
+        "x-reject-unknown-query-parameters": true
+      }
     }
   },
   "components": {
     "schemas": {
+      "analyticsDashboardResponse": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "object", "required": ["analyticsDashboard"], "properties": { "analyticsDashboard": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+          "meta": { "$ref": "#/components/schemas/Meta" }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "analyticsDriverComparisonResponse": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "object", "required": ["driverComparison"], "properties": { "driverComparison": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+          "meta": { "$ref": "#/components/schemas/Meta" }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
       "Coverage": {
         "type": "string",
         "enum": [
