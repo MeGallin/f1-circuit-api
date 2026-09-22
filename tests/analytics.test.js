@@ -80,6 +80,67 @@ test('analytics dashboard respects driver and circuit filters', async () => {
   assert.ok(dashboard.qualifyingVsFinish.every((row) => row.driverId === 'driver:example-one'));
 });
 
+test('circuit performance excludes scheduled circuits until published results exist', async () => {
+  const { app, repository } = appFixture();
+  const events = repository.sets.get('events:2024');
+  const completedEvent = events.items[0];
+  const futureEventId = 'event:2024:future-grand-prix';
+  const futureSessionId = `session:${futureEventId}:race`;
+  const sessions = repository.sets.get(`sessions:${completedEvent.id}`);
+  const results = repository.sets.get(`results:session:${completedEvent.id}:race`);
+  events.items.push({
+    ...completedEvent,
+    id: futureEventId,
+    name: 'Future Grand Prix',
+    round: 2,
+    status: 'scheduled',
+    circuit: {
+      ...completedEvent.circuit,
+      id: 'circuit:future-circuit',
+      displayName: 'Future Circuit',
+    },
+    schedule: { date: '2024-06-01', startsAt: '2024-06-01T12:00:00Z' },
+  });
+  repository.sets.set(`sessions:${futureEventId}`, {
+    ...sessions,
+    key: `sessions:${futureEventId}`,
+    items: sessions.items.map((session) => ({
+      ...session,
+      id: `session:${futureEventId}:${session.kind}`,
+      eventId: futureEventId,
+      status: 'scheduled',
+    })),
+  });
+  repository.sets.set(`results:${futureSessionId}`, {
+    ...results,
+    key: `results:${futureSessionId}`,
+    items: results.items.map((row) => ({
+      ...row,
+      id: row.id.replace(completedEvent.id, futureEventId),
+      sessionId: futureSessionId,
+      position: null,
+      publishedOrder: null,
+      points: null,
+      status: 'not-started',
+    })),
+  });
+
+  const response = await request(app)
+    .get('/api/v1/analytics/dashboard')
+    .query({ season: 2024 })
+    .expect(200);
+
+  const dashboard = response.body.data.analyticsDashboard;
+  assert.deepEqual(
+    dashboard.circuitPerformance.circuits.map((circuit) => circuit.id),
+    ['circuit:example-circuit'],
+  );
+  assert.equal(
+    dashboard.circuitPerformance.cells.some((cell) => cell.circuitId === 'circuit:future-circuit'),
+    false,
+  );
+});
+
 test('driver comparison returns the requested metric set from race results', async () => {
   const { app } = appFixture();
   const response = await request(app)

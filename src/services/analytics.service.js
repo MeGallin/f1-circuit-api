@@ -435,8 +435,10 @@ export class AnalyticsService {
     for (const item of raceContexts) {
       const circuit = item.event.circuit;
       if (!circuit) continue;
+      const rows = driverRows(item.rows).filter(completedResult);
+      if (!rows.length) continue;
       circuitMap.set(circuit.id, circuit);
-      for (const row of driverRows(item.rows)) {
+      for (const row of rows) {
         circuitCells.push({
           circuitId: circuit.id,
           driverId: row.driverId,

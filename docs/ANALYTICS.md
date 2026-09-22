@@ -54,7 +54,10 @@ per race, and recent form.
 4. Constructor contribution is summed from the points on the selected result
    rows, preserving decimal values.
 5. Circuit cells contain the published finish position and an explicit start
-   count. No ranking or completion is invented for missing data.
+   count. A circuit enters the performance view only when the selected session
+   has published driver rows; scheduled events without results do not reserve
+   chart space and appear automatically after their results are published. No
+   ranking or completion is invented for missing data.
 6. `meta.snapshotId`, coverage, freshness, verification, sources, and warnings
    come from the existing publication metadata.
 
