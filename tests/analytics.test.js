@@ -15,6 +15,10 @@ test('analytics dashboard is built from the published archive snapshot', async (
   assert.equal(dashboard.filters.season, 2024);
   assert.equal(dashboard.quickStats.totalEvents, 1);
   assert.equal(dashboard.quickStats.completedEvents, 1);
+  assert.equal(dashboard.quickStats.raceWinnerCount, 1);
+  assert.equal(dashboard.quickStats.podiumDriverCount, 2);
+  assert.equal(dashboard.quickStats.publishedStarts, 2);
+  assert.equal(dashboard.quickStats.fastestLapCount, 0);
   assert.equal(dashboard.pointsProgression.events[0].name, 'Synthetic Grand Prix');
   assert.equal(dashboard.pointsProgression.series[0].points[0], 12.5);
   assert.equal(dashboard.qualifyingVsFinish[0].qualifyingPosition, 1);

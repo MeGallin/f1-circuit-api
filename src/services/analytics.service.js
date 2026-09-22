@@ -359,6 +359,15 @@ export class AnalyticsService {
       podiums: classifiedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
       fastestLaps: classifiedRows.filter((row) => row.fastestLap?.rank === 1).length,
     };
+    const raceWinnerIds = new Set();
+    const podiumDriverIds = new Set();
+    for (const item of raceContexts) {
+      for (const row of driverRows(item.rows)) {
+        if (!completedResult(row)) continue;
+        if (row.position === 1) raceWinnerIds.add(row.driverId);
+        if (row.position >= 1 && row.position <= 3) podiumDriverIds.add(row.driverId);
+      }
+    }
     const weekendTimeline = raceContexts.map((item) => {
       const overview = raceOverview(item);
       const winner = overview?.podium?.find((row) => row.position === 1) || null;
@@ -406,6 +415,10 @@ export class AnalyticsService {
         ).size,
         constructorCount: constructorTotals.size,
         circuitCount: circuitMap.size,
+        raceWinnerCount: raceWinnerIds.size,
+        podiumDriverCount: podiumDriverIds.size,
+        publishedStarts: raceBreakdown.starts,
+        fastestLapCount: raceBreakdown.fastestLaps,
         podiumRate: percentage(raceBreakdown.podiums, raceBreakdown.starts),
         dnfRate: percentage(raceBreakdown.dnfs, raceBreakdown.starts),
       },
