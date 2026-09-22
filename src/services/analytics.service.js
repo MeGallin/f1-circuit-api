@@ -359,6 +359,27 @@ export class AnalyticsService {
       podiums: classifiedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
       fastestLaps: classifiedRows.filter((row) => row.fastestLap?.rank === 1).length,
     };
+    const weekendTimeline = raceContexts.map((item) => {
+      const overview = raceOverview(item);
+      const winner = overview?.podium?.find((row) => row.position === 1) || null;
+      return {
+        id: item.event.id,
+        name: item.event.name,
+        year: item.event.year,
+        round: item.event.round,
+        status: item.event.status,
+        completed: item.event.status === 'completed' || item.results.length > 0,
+        circuit: item.event.circuit || null,
+        schedule: item.event.schedule || null,
+        winner: winner
+          ? {
+              driverId: winner.driverId,
+              driverName: winner.driverName,
+              constructorName: winner.constructorName,
+            }
+          : null,
+      };
+    });
     const dashboard = {
       filters,
       filterOptions: {
@@ -392,6 +413,7 @@ export class AnalyticsService {
         latestCompleted: latest?.event || null,
         nextEvent: next?.event || null,
       },
+      weekendTimeline,
       seasonIntelligence: {
         progress: {
           totalEvents: context.events.length,

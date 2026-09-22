@@ -46,6 +46,10 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(intelligence.raceBreakdown.podiums, 2);
   assert.equal(intelligence.latestRace.results.length, 2);
   assert.equal(intelligence.latestRace.results[0].gridPosition, 1);
+  const dashboard = response.body.data.analyticsDashboard;
+  assert.equal(dashboard.weekendTimeline.length, 1);
+  assert.equal(dashboard.weekendTimeline[0].completed, true);
+  assert.equal(dashboard.weekendTimeline[0].winner.driverName, 'Example One');
   assert.equal(response.body.data.analyticsDashboard.quickStats.podiumRate, 100);
   assert.equal(response.body.data.analyticsDashboard.quickStats.dnfRate, 0);
   assert.equal(response.body.data.analyticsDashboard.insights.length, 4);
