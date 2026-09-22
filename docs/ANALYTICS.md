@@ -20,7 +20,11 @@ Supported query parameters:
 The response contains `analyticsDashboard` with normalized filters and options,
 quick statistics, latest/next highlights, points progression, qualifying versus
 finish rows, constructor contribution, circuit performance cells, a default
-driver comparison, and deterministic insights. Each section reflects the
+driver comparison, season intelligence, and deterministic insights. Season
+intelligence contains the published season-progress totals, championship and
+constructor leaders, the latest completed race with its podium and fastest-lap
+attribution when present, and the next scheduled event with its circuit and
+race-start schedule. Each section reflects the
 published archive and may be empty when the selected snapshot does not contain
 the required dataset.
 

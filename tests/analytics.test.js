@@ -24,6 +24,24 @@ test('analytics dashboard is built from the published archive snapshot', async (
   assert.ok(dashboard.defaultComparison.drivers.length >= 1);
 });
 
+test('analytics dashboard exposes published season intelligence for the overview band', async () => {
+  const { app } = appFixture();
+  const response = await request(app)
+    .get('/api/v1/analytics/dashboard')
+    .query({ season: 2024 })
+    .expect(200);
+
+  const intelligence = response.body.data.analyticsDashboard.seasonIntelligence;
+  assert.equal(intelligence.progress.totalEvents, 1);
+  assert.equal(intelligence.progress.completedEvents, 1);
+  assert.equal(intelligence.latestRace.name, 'Synthetic Grand Prix');
+  assert.equal(intelligence.latestRace.podium[0].position, 1);
+  assert.equal(intelligence.latestRace.podium[0].driverName, 'Example One');
+  assert.equal(intelligence.latestRace.podium[0].constructorName, 'Example Team');
+  assert.equal(intelligence.championshipLeader.driverName, 'Example One');
+  assert.equal(intelligence.championshipLeader.points, 12.5);
+});
+
 test('analytics dashboard respects driver and circuit filters', async () => {
   const { app } = appFixture();
   const response = await request(app)

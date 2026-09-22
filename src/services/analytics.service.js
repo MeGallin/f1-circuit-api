@@ -35,6 +35,58 @@ const driverRows = (rows) =>
 const completedResult = (row) =>
   row?.position != null && !['not-started', 'withdrawn', 'disqualified'].includes(row.status);
 
+const entryDriver = (row) => row?.entry?.drivers?.[0] || null;
+const entryConstructor = (row) => row?.entry?.constructor || null;
+
+const eventOverview = (item) => {
+  if (!item?.event) return null;
+  return {
+    id: item.event.id,
+    name: item.event.name,
+    year: item.event.year,
+    round: item.event.round,
+    status: item.event.status,
+    circuit: item.event.circuit || null,
+    schedule: item.event.schedule || null,
+    evidenceId: item.evidence?.evidenceId || null,
+  };
+};
+
+const raceOverview = (item) => {
+  const event = eventOverview(item);
+  if (!event) return null;
+  const podium = item.results
+    .filter((row) => completedResult(row) && row.position >= 1 && row.position <= 3)
+    .sort((a, b) => a.position - b.position)
+    .map((row) => {
+      const driver = entryDriver(row);
+      const constructor = entryConstructor(row);
+      return {
+        position: row.position,
+        driverId: driver?.id || null,
+        driverName: display(driver),
+        constructorId: constructor?.id || null,
+        constructorName: display(constructor),
+        number: row.entry?.number || null,
+        points: numeric(row.points),
+      };
+    });
+  const fastest = item.results.find((row) => completedResult(row) && row.fastestLap?.rank === 1);
+  const fastestDriver = entryDriver(fastest);
+  return {
+    ...event,
+    podium,
+    fastestLap: fastest
+      ? {
+          driverId: fastestDriver?.id || null,
+          driverName: display(fastestDriver),
+          lapNumber: fastest.fastestLap.lapNumber ?? null,
+          durationMs: fastest.fastestLap.durationMs ?? null,
+        }
+      : null,
+  };
+};
+
 function parseFilters(query, { comparison = false } = {}) {
   const season = integer(query.season, 'season', { min: 1900, max: 2200 });
   const fromRound = integer(query.fromRound, 'fromRound', { min: 1, max: 100 });
@@ -214,9 +266,12 @@ export class AnalyticsService {
         });
     });
     const constructorTotals = new Map();
+    const driverConstructorMap = new Map();
     for (const item of raceContexts) {
       for (const row of item.rows) {
         const constructor = row.entry?.constructor;
+        for (const driver of row.entry?.drivers || [])
+          driverConstructorMap.set(driver.id, constructor || null);
         if (!constructor) continue;
         const record = constructorTotals.get(constructor.id) || {
           constructorId: constructor.id,
@@ -267,6 +322,14 @@ export class AnalyticsService {
         total + item.rows.reduce((subtotal, row) => subtotal + (numeric(row.points) || 0), 0),
       0,
     );
+    const defaultComparison = await this.driverComparisonFromContext(context, filters.driverIds);
+    const championshipLeader = [...defaultComparison.drivers]
+      .sort((a, b) => b.metrics.points - a.metrics.points)
+      .at(0);
+    const constructorLeader = constructorContribution[0] || null;
+    const completedEvents = raceContexts.filter(
+      (item) => item.event.status === 'completed' || item.results.length,
+    ).length;
     const dashboard = {
       filters,
       filterOptions: {
@@ -298,6 +361,33 @@ export class AnalyticsService {
         latestCompleted: latest?.event || null,
         nextEvent: next?.event || null,
       },
+      seasonIntelligence: {
+        progress: {
+          totalEvents: context.events.length,
+          completedEvents,
+          percentage: context.events.length
+            ? Math.round((completedEvents / context.events.length) * 100)
+            : 0,
+        },
+        championshipLeader: championshipLeader
+          ? {
+              driverId: championshipLeader.id,
+              driverName: championshipLeader.name,
+              points: championshipLeader.metrics.points,
+              wins: championshipLeader.metrics.wins,
+              constructor: driverConstructorMap.get(championshipLeader.id) || null,
+            }
+          : null,
+        constructorLeader: constructorLeader
+          ? {
+              constructorId: constructorLeader.constructorId,
+              constructorName: constructorLeader.constructorName,
+              points: constructorLeader.totalPoints,
+            }
+          : null,
+        latestRace: raceOverview(latest),
+        nextRace: eventOverview(next),
+      },
       pointsProgression: {
         events: progressionEvents.map((item) => ({
           round: item.event.round,
@@ -316,7 +406,7 @@ export class AnalyticsService {
         drivers: [...driverMap.entries()].map(([id, entity]) => ({ id, name: display(entity) })),
         cells: circuitCells,
       },
-      defaultComparison: await this.driverComparisonFromContext(context, filters.driverIds),
+      defaultComparison,
       insights: [
         latest
           ? `${latest.event.name} is the latest published event in this selection.`
