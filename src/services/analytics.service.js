@@ -102,6 +102,126 @@ const raceOverview = (item) => {
   };
 };
 
+const coverage = (set) => set?.coverage || 'unavailable';
+
+const numericRange = (values) => {
+  const finite = values.filter(Number.isFinite);
+  if (!finite.length) return null;
+  const total = finite.reduce((sum, value) => sum + value, 0);
+  return {
+    min: Math.min(...finite),
+    max: Math.max(...finite),
+    average: Math.round((total / finite.length) * 10) / 10,
+  };
+};
+
+const latestSessionHighlights = async (get, latest) => {
+  if (!latest?.session?.id) return null;
+  const sessionId = latest.session.id;
+  const [weatherSet, stintsSet, pitStopsSet, overtakesSet, raceControlSet] = await Promise.all([
+    get(`weather:${sessionId}`),
+    get(`stints:${sessionId}`),
+    get(`pit-stops:${sessionId}`),
+    get(`overtakes:${sessionId}`),
+    get(`race-control:${sessionId}`),
+  ]);
+  const results = latest.results || [];
+  const entries = new Map(
+    results
+      .filter((row) => row.entry?.id)
+      .map((row) => [
+        row.entry.id,
+        {
+          driverId: entryDriver(row)?.id || null,
+          driverName: display(entryDriver(row)),
+          position: row.position ?? Number.MAX_SAFE_INTEGER,
+        },
+      ]),
+  );
+  const driverForEntry = (entryId) => entries.get(entryId) || null;
+  const orderDrivers = (map) =>
+    [...map.values()].sort(
+      (a, b) => a.position - b.position || a.driverName.localeCompare(b.driverName),
+    );
+  const withoutPosition = ({ position: _position, ...driver }) => driver;
+
+  const weatherRows = weatherSet?.items || [];
+  const tyreMap = new Map();
+  for (const stint of stintsSet?.items || []) {
+    const driver = driverForEntry(stint.entryId);
+    if (!driver) continue;
+    const record = tyreMap.get(driver.driverId) || {
+      ...driver,
+      compounds: [],
+      stintCount: 0,
+      laps: 0,
+    };
+    const compound = stint.compoundLabel || stint.compoundClass || null;
+    if (compound && !record.compounds.includes(compound)) record.compounds.push(compound);
+    record.stintCount += 1;
+    if (Number.isFinite(stint.startLap) && Number.isFinite(stint.endLap))
+      record.laps += Math.max(0, stint.endLap - stint.startLap + 1);
+    tyreMap.set(driver.driverId, record);
+  }
+
+  const pitStopRows = pitStopsSet?.items || [];
+  const pitStopDrivers = new Map();
+  for (const stop of pitStopRows) {
+    const driver = driverForEntry(stop.entryId);
+    if (!driver) continue;
+    const record = pitStopDrivers.get(driver.driverId) || { ...driver, count: 0 };
+    record.count += 1;
+    pitStopDrivers.set(driver.driverId, record);
+  }
+
+  const overtakeDrivers = new Map();
+  for (const overtake of overtakesSet?.items || []) {
+    const driver = driverForEntry(overtake.passingEntryId);
+    if (!driver) continue;
+    const record = overtakeDrivers.get(driver.driverId) || { ...driver, count: 0 };
+    record.count += 1;
+    overtakeDrivers.set(driver.driverId, record);
+  }
+
+  const controlRows = raceControlSet?.items || [];
+  return {
+    sessionId,
+    kind: latest.session.kind,
+    weather: {
+      coverage: coverage(weatherSet),
+      observations: weatherRows.length,
+      airTemperatureC: numericRange(weatherRows.map((row) => row.airTemperatureC)),
+      trackTemperatureC: numericRange(weatherRows.map((row) => row.trackTemperatureC)),
+      humidityPercent: numericRange(weatherRows.map((row) => row.humidityPercent)),
+      rainfallObservations: weatherRows.filter((row) => row.rainfall === true).length,
+    },
+    tyres: {
+      coverage: coverage(stintsSet),
+      count: stintsSet?.items?.length || 0,
+      drivers: orderDrivers(tyreMap).slice(0, 5).map(withoutPosition),
+    },
+    pitStops: {
+      coverage: coverage(pitStopsSet),
+      count: pitStopRows.length,
+      drivers: orderDrivers(pitStopDrivers).slice(0, 5).map(withoutPosition),
+    },
+    overtakes: {
+      coverage: coverage(overtakesSet),
+      count: overtakesSet?.items?.length || 0,
+      leaders: [...overtakeDrivers.values()]
+        .sort((a, b) => b.count - a.count || a.position - b.position)
+        .slice(0, 5)
+        .map(withoutPosition),
+    },
+    raceControl: {
+      coverage: coverage(raceControlSet),
+      events: controlRows.length,
+      flagEvents: controlRows.filter((row) => row.flag).length,
+      flags: [...new Set(controlRows.map((row) => row.flag).filter(Boolean))],
+    },
+  };
+};
+
 function parseFilters(query, { comparison = false } = {}) {
   const season = integer(query.season, 'season', { min: 1900, max: 2200 });
   const fromRound = integer(query.fromRound, 'fromRound', { min: 1, max: 100 });
@@ -365,6 +485,10 @@ export class AnalyticsService {
       podiums: classifiedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
       fastestLaps: classifiedRows.filter((row) => row.fastestLap?.rank === 1).length,
     };
+    const latestSessionData = await latestSessionHighlights(
+      (key) => this.repository.get(key, context.snapshot.id),
+      latest,
+    );
     const raceWinnerIds = new Set();
     const podiumDriverIds = new Set();
     for (const item of raceContexts) {
@@ -432,6 +556,7 @@ export class AnalyticsService {
         latestCompleted: latest?.event || null,
         nextEvent: next?.event || null,
       },
+      latestSessionHighlights: latestSessionData,
       weekendTimeline,
       seasonIntelligence: {
         progress: {

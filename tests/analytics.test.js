@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import { appFixture } from './helpers.js';
+import { appFixture, sessionId } from './helpers.js';
 
 test('analytics dashboard is built from the published archive snapshot', async () => {
   const { app } = appFixture();
@@ -99,6 +99,72 @@ test('driver comparison returns the requested metric set from race results', asy
   assert.equal(comparison.drivers[0].metrics.podiums, 1);
   assert.equal(comparison.drivers[0].metrics.positionsGained, 0);
   assert.equal(comparison.drivers[1].metrics.positionsGained, 0);
+});
+
+test('analytics dashboard exposes latest-session evidence when published', async () => {
+  const { app, repository } = appFixture();
+  const exampleOneEntry = `entry:${sessionId}:example-one`;
+  const exampleTwoEntry = `entry:${sessionId}:example-two`;
+  repository.sets.set(`weather:${sessionId}`, {
+    coverage: 'partial',
+    items: [
+      { airTemperatureC: 24, trackTemperatureC: 41, humidityPercent: 55, rainfall: false },
+      { airTemperatureC: 26, trackTemperatureC: 44, humidityPercent: 51, rainfall: true },
+    ],
+  });
+  repository.sets.set(`stints:${sessionId}`, {
+    coverage: 'partial',
+    items: [
+      {
+        entryId: exampleOneEntry,
+        sequence: 1,
+        startLap: 1,
+        endLap: 5,
+        compoundLabel: 'Medium',
+        compoundClass: 'medium',
+      },
+      {
+        entryId: exampleOneEntry,
+        sequence: 2,
+        startLap: 6,
+        endLap: 10,
+        compoundLabel: 'Hard',
+        compoundClass: 'hard',
+      },
+    ],
+  });
+  repository.sets.set(`pit-stops:${sessionId}`, {
+    coverage: 'partial',
+    items: [{ entryId: exampleOneEntry, sequence: 1, lap: 5, stationaryDurationMs: 2100 }],
+  });
+  repository.sets.set(`overtakes:${sessionId}`, {
+    coverage: 'partial',
+    items: [
+      { passingEntryId: exampleOneEntry, passedEntryId: exampleTwoEntry },
+      { passingEntryId: exampleOneEntry, passedEntryId: exampleTwoEntry },
+    ],
+  });
+  repository.sets.set(`race-control:${sessionId}`, {
+    coverage: 'partial',
+    items: [{ category: 'Flag', flag: 'yellow', message: 'Yellow flag' }],
+  });
+
+  const response = await request(app)
+    .get('/api/v1/analytics/dashboard')
+    .query({ season: 2024 })
+    .expect(200);
+
+  const highlights = response.body.data.analyticsDashboard.latestSessionHighlights;
+  assert.equal(highlights.sessionId, sessionId);
+  assert.equal(highlights.weather.observations, 2);
+  assert.deepEqual(highlights.weather.airTemperatureC, { min: 24, max: 26, average: 25 });
+  assert.equal(highlights.weather.rainfallObservations, 1);
+  assert.equal(highlights.tyres.drivers[0].driverName, 'Example One');
+  assert.deepEqual(highlights.tyres.drivers[0].compounds, ['Medium', 'Hard']);
+  assert.equal(highlights.pitStops.count, 1);
+  assert.equal(highlights.overtakes.count, 2);
+  assert.equal(highlights.overtakes.leaders[0].driverName, 'Example One');
+  assert.equal(highlights.raceControl.flagEvents, 1);
 });
 
 test('analytics rejects malformed filter ranges', async () => {

@@ -26,6 +26,11 @@ constructor leaders, the latest completed race with its podium and fastest-lap
 attribution when present, up to five leading result rows for the latest race,
 and the next scheduled event with its circuit and race-start schedule. Quick
 statistics also expose podium and DNF rates calculated from published starts.
+`latestSessionHighlights` adds the supporting published datasets for the latest
+selected session when they exist: weather ranges and rainfall observations,
+tyre-stint summaries, pit-stop totals, overtake leaders, and race-control flag
+events. Each dataset carries its own coverage state, so an unavailable historical
+publication remains visible as unavailable rather than being treated as zero.
 The season-intelligence breakdown reports entries, starts, classified finishes,
 DNFs, wins, podiums, and fastest laps from the selected published result rows.
 Each section reflects the
