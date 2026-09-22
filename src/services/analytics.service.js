@@ -338,9 +338,15 @@ export class AnalyticsService {
       0,
     );
     const defaultComparison = await this.driverComparisonFromContext(context, filters.driverIds);
-    const championshipLeader = [...defaultComparison.drivers]
-      .sort((a, b) => b.metrics.points - a.metrics.points)
-      .at(0);
+    const championshipDrivers = [...defaultComparison.drivers].sort(
+      (a, b) => b.metrics.points - a.metrics.points,
+    );
+    const championshipLeader = championshipDrivers.at(0);
+    const championshipLeaderNumber = championshipLeader
+      ? raceContexts
+          .flatMap((item) => driverRows(item.rows))
+          .find((row) => row.driverId === championshipLeader.id)?.entry?.number || null
+      : null;
     const constructorLeader = constructorContribution[0] || null;
     const completedEvents = raceContexts.filter(
       (item) => item.event.status === 'completed' || item.results.length,
@@ -439,6 +445,9 @@ export class AnalyticsService {
           ? {
               driverId: championshipLeader.id,
               driverName: championshipLeader.name,
+              position:
+                championshipDrivers.findIndex((driver) => driver.id === championshipLeader.id) + 1,
+              number: championshipLeaderNumber,
               points: championshipLeader.metrics.points,
               wins: championshipLeader.metrics.wins,
               podiums: championshipLeader.metrics.podiums,

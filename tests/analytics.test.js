@@ -43,6 +43,8 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(intelligence.latestRace.podium[0].driverName, 'Example One');
   assert.equal(intelligence.latestRace.podium[0].constructorName, 'Example Team');
   assert.equal(intelligence.championshipLeader.driverName, 'Example One');
+  assert.equal(intelligence.championshipLeader.position, 1);
+  assert.equal(intelligence.championshipLeader.number, '1');
   assert.equal(intelligence.championshipLeader.points, 12.5);
   assert.deepEqual(intelligence.championshipLeader.recentForm, [1]);
   assert.equal(intelligence.raceBreakdown.entries, 2);
