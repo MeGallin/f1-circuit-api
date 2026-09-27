@@ -26,6 +26,18 @@ export function loadConfig(env = process.env) {
   }
   if (env.NODE_ENV === 'production' && env.DATABASE_SSL === 'false')
     throw new Error('Production database connections require TLS.');
+  const autoSyncIntervalMs = Number(env.AUTO_SYNC_INTERVAL_MS ?? 900000);
+  const autoSyncGraceMs = Number(env.AUTO_SYNC_GRACE_MS ?? 21600000);
+  const autoSyncWindowMs = Number(env.AUTO_SYNC_WINDOW_MS ?? 86400000);
+  const autoSyncRescanMs = Number(env.AUTO_SYNC_RESCAN_MS ?? 21600000);
+  if (!Number.isSafeInteger(autoSyncIntervalMs) || autoSyncIntervalMs < 1000)
+    throw new Error('AUTO_SYNC_INTERVAL_MS must be an integer of at least 1000ms.');
+  if (!Number.isSafeInteger(autoSyncGraceMs) || autoSyncGraceMs < 0)
+    throw new Error('AUTO_SYNC_GRACE_MS must be a non-negative integer.');
+  if (!Number.isSafeInteger(autoSyncWindowMs) || autoSyncWindowMs < 1000)
+    throw new Error('AUTO_SYNC_WINDOW_MS must be an integer of at least 1000ms.');
+  if (!Number.isSafeInteger(autoSyncRescanMs) || autoSyncRescanMs < 1000)
+    throw new Error('AUTO_SYNC_RESCAN_MS must be an integer of at least 1000ms.');
   return {
     port,
     databaseUrl: env.DATABASE_URL,
@@ -42,6 +54,11 @@ export function loadConfig(env = process.env) {
     openaiTimeoutMs: Number(env.OPENAI_TIMEOUT_MS || 10000),
     openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
     questionRagEnabled: env.QUESTION_RAG_ENABLED !== 'false',
+    autoSyncEnabled: env.AUTO_SYNC_ENABLED === 'true',
+    autoSyncIntervalMs,
+    autoSyncGraceMs,
+    autoSyncWindowMs,
+    autoSyncRescanMs,
     poolSize: 5,
   };
 }

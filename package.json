@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "sync": "node scripts/sync.js",
+    "sync": "node --env-file-if-exists=.env scripts/sync.js",
     "index:questions": "node --env-file=.env scripts/index-question-documents.js",
     "check:question-index": "node --env-file=.env scripts/check-question-index.js",
     "check:questions": "node --env-file=.env scripts/check-question-contract.js",

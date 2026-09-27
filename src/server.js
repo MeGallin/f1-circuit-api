@@ -4,6 +4,7 @@ import { createLogger } from './observability/logger.js';
 import { PublicationRepository } from './repositories/publication.repository.js';
 import { createApp } from './app.js';
 import { createRouter } from './routes/index.js';
+import { createJolpicaSeasonScheduler } from './jobs/current-season-scheduler.js';
 const config = loadConfig();
 const logger = createLogger(config.logLevel);
 const pool = createPool(config);
@@ -11,12 +12,15 @@ pool.on('error', () => logger.error('Idle database connection failed.'));
 const repository = new PublicationRepository(pool);
 const app = createApp({ repository, config, logger, router: createRouter(repository, { config }) });
 const server = app.listen(config.port, () => logger.info({ port: config.port }, 'API listening'));
+const scheduler = createJolpicaSeasonScheduler({ pool, repository, config, logger });
+server.once('listening', () => scheduler.start());
 let stopping = false;
 async function stop() {
   if (stopping) return;
   stopping = true;
   const timeout = setTimeout(() => process.exit(1), 10000);
   timeout.unref();
+  await scheduler.stop();
   server.close(async () => {
     await pool.end();
     clearTimeout(timeout);

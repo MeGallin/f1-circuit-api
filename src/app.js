@@ -62,6 +62,19 @@ export function createApp({ repository, config, logger, router }) {
       },
     }),
   );
+  app.get('/api/v1/publication-config', (_req, res) => {
+    res.set('Cache-Control', 'public, max-age=60, must-revalidate').json({
+      automaticRaceResults: {
+        enabled: config.autoSyncEnabled === true,
+        intervalMs: config.autoSyncIntervalMs ?? 900000,
+        graceMs: config.autoSyncGraceMs ?? 21600000,
+        windowMs: config.autoSyncWindowMs ?? 86400000,
+        rescanMs: config.autoSyncRescanMs ?? 21600000,
+        anchor: 'scheduled-race-start',
+        dateOnlyRacesMonitored: false,
+      },
+    });
+  });
   if (router) app.use('/api/v1', router);
   app.use((_req, _res, next) => next(missing()));
   app.use(errorHandler(logger));
