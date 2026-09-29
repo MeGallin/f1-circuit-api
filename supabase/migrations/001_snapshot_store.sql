@@ -1,4 +1,6 @@
-CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS public.schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL PRIVILEGES ON TABLE public.schema_migrations FROM PUBLIC, anon, authenticated;
 CREATE TABLE publications (
  id text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now(), content_hash text NOT NULL,
  provenance jsonb NOT NULL, CHECK (jsonb_typeof(provenance)='object')

@@ -7,19 +7,24 @@ export async function migrate(pool) {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(7198402)');
     await client.query(
-      'CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
+      'CREATE TABLE IF NOT EXISTS public.schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
+    );
+    await client.query('ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY');
+    await client.query(
+      'REVOKE ALL PRIVILEGES ON TABLE public.schema_migrations FROM PUBLIC, anon, authenticated',
     );
     for (const file of (await fs.readdir(new URL('../supabase/migrations/', import.meta.url)))
       .filter((x) => x.endsWith('.sql'))
       .sort()) {
-      const existing = await client.query('SELECT name FROM schema_migrations WHERE name=$1', [
-        file,
-      ]);
+      const existing = await client.query(
+        'SELECT name FROM public.schema_migrations WHERE name=$1',
+        [file],
+      );
       if (existing.rows.length) continue;
       await client.query(
         await fs.readFile(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8'),
       );
-      await client.query('INSERT INTO schema_migrations(name) VALUES($1)', [file]);
+      await client.query('INSERT INTO public.schema_migrations(name) VALUES($1)', [file]);
     }
     await client.query('COMMIT');
   } catch (err) {

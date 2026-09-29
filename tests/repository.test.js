@@ -17,10 +17,14 @@ test('SQL repository publishes versioned normalized records and replaces data wi
     returns: DataType.integer,
     implementation: () => 1,
   });
-  // pg-mem does not implement RLS. Real PostgreSQL/Supabase migration validation remains a release gate.
+  // pg-mem does not implement RLS or table grants; real PostgreSQL/Supabase validation remains a release gate.
   const sql = fs
     .readFileSync(new URL('../supabase/migrations/001_snapshot_store.sql', import.meta.url), 'utf8')
-    .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, '');
+    .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, '')
+    .replace(
+      /^REVOKE ALL PRIVILEGES ON TABLE public\.schema_migrations FROM PUBLIC, anon, authenticated;$/gm,
+      '',
+    );
   db.public.none(sql);
   db.public.none(
     fs

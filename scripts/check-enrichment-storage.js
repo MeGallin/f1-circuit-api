@@ -15,6 +15,13 @@ try {
     const sql = (
       await fs.readFile(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8')
     )
+      // Keep the production migration ledger and its ACLs out of this temp-table-only check.
+      .replace(/^CREATE TABLE IF NOT EXISTS public\.schema_migrations .*;$/gm, '')
+      .replace(/^ALTER TABLE public\.schema_migrations ENABLE ROW LEVEL SECURITY;$/gm, '')
+      .replace(
+        /^REVOKE ALL PRIVILEGES ON TABLE public\.schema_migrations FROM PUBLIC, anon, authenticated;$/gm,
+        '',
+      )
       .replace(/CREATE TABLE(?: IF NOT EXISTS)? /g, 'CREATE TEMP TABLE ')
       .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, '');
     await client.query(sql);

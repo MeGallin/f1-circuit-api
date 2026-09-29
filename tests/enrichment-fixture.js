@@ -29,7 +29,11 @@ export async function enrichmentFixture() {
     db.public.none(
       fs
         .readFileSync(new URL('../supabase/migrations/' + file, import.meta.url), 'utf8')
-        .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, ''),
+        .replace(/^ALTER TABLE .* ENABLE ROW LEVEL SECURITY;$/gm, '')
+        .replace(
+          /^REVOKE ALL PRIVILEGES ON TABLE public\.schema_migrations FROM PUBLIC, anon, authenticated;$/gm,
+          '',
+        ),
     );
   db.public.none(
     'CREATE TABLE archive_activation_holds(publication_id text PRIMARY KEY REFERENCES publications(id))',
