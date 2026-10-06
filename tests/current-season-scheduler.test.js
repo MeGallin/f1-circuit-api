@@ -645,7 +645,8 @@ test('Jolpica import uses runSync and atomically publishes provider results', as
   const providerCalls = [];
   const serviceCalls = [];
   const provider = {
-    async weekend(year, round) {
+    async weekend(year, round, options) {
+      assert.equal(options.totalTimeoutMs, 240000);
       providerCalls.push([year, round]);
       return {
         calendar: [],
@@ -655,7 +656,8 @@ test('Jolpica import uses runSync and atomically publishes provider results', as
     },
   };
   const service = {
-    async publish(bundle, providerName) {
+    async publish(bundle, providerName, version, options) {
+      assert.deepEqual(options, { preserveExisting: true });
       serviceCalls.push([bundle, providerName]);
       const race = repo.sets.get('events:2026').items[0];
       putCompletePublication(repo.sets, race);

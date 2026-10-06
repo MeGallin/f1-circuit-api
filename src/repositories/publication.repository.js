@@ -1,5 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { hash } from '../models/dataset.js';
+const WRITE_BATCH_SIZE = 500;
+
+async function insertRows(client, sql, rows, suffix = '') {
+  for (let offset = 0; offset < rows.length; offset += WRITE_BATCH_SIZE) {
+    const batch = rows.slice(offset, offset + WRITE_BATCH_SIZE);
+    const values = batch.map(
+      (row, index) =>
+        `(${row.map((_, column) => `$${index * row.length + column + 1}`).join(',')})`,
+    );
+    await client.query(`${sql} VALUES ${values.join(',')} ${suffix}`, batch.flat());
+  }
+}
 export class PublicationRepository {
   constructor(pool) {
     this.pool = pool;
@@ -38,6 +50,36 @@ export class PublicationRepository {
       evidenceId: rows[0].evidence_id,
       items: records.rows.map((x) => x.payload),
     };
+  }
+  async getMany(keys, snapshotId) {
+    const unique = [...new Set(keys)];
+    if (!unique.length) return new Map();
+    const placeholders = unique.map((_, index) => `$${index + 2}`).join(',');
+    const parameters = [snapshotId, ...unique];
+    const { rows } = await this.pool.query(
+      `SELECT * FROM datasets WHERE publication_id=$1 AND key IN (${placeholders})`,
+      parameters,
+    );
+    const records = await this.pool.query(
+      `SELECT dataset_key,payload FROM normalized_records WHERE publication_id=$1 AND dataset_key IN (${placeholders}) ORDER BY dataset_key,ordinal,id`,
+      parameters,
+    );
+    const result = new Map(
+      rows.map((row) => [
+        row.key,
+        {
+          ...row.metadata,
+          key: row.key,
+          schema: row.schema_name,
+          coverage: row.coverage,
+          verification: row.verification,
+          evidenceId: row.evidence_id,
+          items: [],
+        },
+      ]),
+    );
+    for (const row of records.rows) result.get(row.dataset_key)?.items.push(row.payload);
+    return result;
   }
   async keys(prefix, snapshotId) {
     const { rows } = await this.pool.query(
@@ -125,17 +167,24 @@ export class PublicationRepository {
             JSON.stringify(metadata),
           ],
         );
-        for (let i = 0; i < items.length; i++)
-          await client.query(
-            'INSERT INTO normalized_records(publication_id,dataset_key,id,ordinal,payload) VALUES($1,$2,$3,$4,$5)',
-            [id, set.key, items[i].id || `${set.key}:${i}`, i, JSON.stringify(items[i])],
-          );
-      }
-      for (const [alias, canonical] of Object.entries(aliases))
-        await client.query(
-          'INSERT INTO entity_aliases(publication_id,alias,canonical_id) VALUES($1,$2,$3) ON CONFLICT(publication_id,alias) DO UPDATE SET canonical_id=EXCLUDED.canonical_id',
-          [id, alias, canonical],
+        await insertRows(
+          client,
+          'INSERT INTO normalized_records(publication_id,dataset_key,id,ordinal,payload)',
+          items.map((item, i) => [
+            id,
+            set.key,
+            item.id || `${set.key}:${i}`,
+            i,
+            JSON.stringify(item),
+          ]),
         );
+      }
+      await insertRows(
+        client,
+        'INSERT INTO entity_aliases(publication_id,alias,canonical_id)',
+        Object.entries(aliases).map(([alias, canonical]) => [id, alias, canonical]),
+        'ON CONFLICT(publication_id,alias) DO UPDATE SET canonical_id=EXCLUDED.canonical_id',
+      );
       await client.query(
         'INSERT INTO current_publication(singleton,publication_id) VALUES(1,$1) ON CONFLICT(singleton) DO UPDATE SET publication_id=EXCLUDED.publication_id',
         [id],

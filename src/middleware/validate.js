@@ -50,8 +50,16 @@ export function validation(operation) {
         Date.parse(query.to) - Date.parse(query.from) > 120000
       )
         throw invalid('Series window must not exceed 120 seconds.');
-      if (operation.method === 'post' && !validateSchema('QuestionRequest', req.body).valid)
-        throw invalid('Invalid question request.');
+      if (operation.method === 'post') {
+        const schema =
+          operation.operationId === 'refreshRaceData' ? 'RefreshDataRequest' : 'QuestionRequest';
+        if (!validateSchema(schema, req.body).valid)
+          throw invalid(
+            schema === 'RefreshDataRequest'
+              ? 'Invalid refresh request.'
+              : 'Invalid question request.',
+          );
+      }
       req.validated = { query, params, body: req.body };
       next();
     } catch (error) {

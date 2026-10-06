@@ -3,6 +3,8 @@ import { hash, dataset } from '../models/dataset.js';
 import { normalizeWeekend } from '../models/normalization.js';
 import { validateSchema } from '../schemas/contract.js';
 import { reconcileDataset } from '../reconciliation/datasets.js';
+import { preserveRefreshDatasets } from './preserve-refresh-data.js';
+import { cacheSnapshot } from '../repositories/snapshot-cache.js';
 export class SyncService {
   constructor(repository) {
     this.repository = repository;
@@ -65,10 +67,10 @@ export class SyncService {
       'jolpica',
     );
   }
-  async publish(bundle, provider, version = null) {
+  async publish(bundle, provider, version = null, { preserveExisting = false } = {}) {
     const current = await this.repository.snapshot();
     if (current) {
-      bundle.eventIds = {};
+      bundle.eventIds = { ...(bundle.eventIds || {}) };
       for (const race of bundle.calendar) {
         const alias = await this.repository.resolve(
           `race:${race.season}:${race.round}`,
@@ -115,10 +117,18 @@ export class SyncService {
           );
       }
     }
-    return this.publishSets(normalized, bundle.observations || [], provider, version);
+    const repository =
+      preserveExisting && current
+        ? await cacheSnapshot(this.repository, current.id, [
+            ...normalized.sets.map((set) => set.key),
+            `source:${provider}`,
+          ])
+        : this.repository;
+    if (preserveExisting && current)
+      await preserveRefreshDatasets(repository, current.id, normalized.sets);
+    return this.publishSets(normalized, bundle.observations || [], provider, version, repository);
   }
-  async publishSets(normalized, observations, provider, version = null) {
-    const repo = this.repository;
+  async publishSets(normalized, observations, provider, version = null, repo = this.repository) {
     const current = await repo.snapshot();
     // Merge imported seasons into the catalogue; do not discard previously imported years.
     const season = normalized.sets.find((s) => s.key === 'seasons');

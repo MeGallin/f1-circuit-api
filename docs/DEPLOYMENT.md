@@ -59,12 +59,73 @@ default timing shape is `{"automaticRaceResults":{"enabled":false,"intervalMs":9
 `enabled` is configuration, not a live scheduler heartbeat. No provider or
 database credential is exposed to the browser.
 
+## Manual latest-race refresh
+
+`POST /api/v1/refresh-data` accepts only `{ "season": <current UTC year> }`;
+it never accepts a caller-selected round or provider parameters. The API picks
+the latest scheduled race whose precise start time has passed and checks the
+race-result source. This explicit user-triggered check is allowed after the
+automatic start+6-hour/24-hour watch has expired, so a missed result can be
+recovered without reopening recurring polling. Automatic and manual work still
+share the PostgreSQL advisory lock.
+
+Manual checks are single-flight and use a shared five-minute cooldown. A
+successful response distinguishes `updated` (a publication was activated),
+`unchanged` (the source was checked and the active data already matches),
+`pending` (the source has not published race results), `busy`, `cooldown`, and
+`no-race`. Updated/unchanged/pending/busy/cooldown responses include the
+server's remaining `retryAfterMs`; source-check outcomes include the check
+time. Cooldown is rechecked under the shared lock before creating an audit
+run. Provider/network failures return the standard API 503 error
+envelope. The importer prioritizes race results and treats qualifying and
+standings as optional enrichment; it does not fetch lap/pit-stop pages. A
+failed or pending check does not replace the active database publication, so
+the client can keep/reload its existing published snapshot.
+
+## Free-instance scheduled checks
+
+Render Free instances can spin down while idle, so their in-process timer is
+best-effort across sleep. The repository includes a GitHub Actions one-shot
+runner at `.github/workflows/current-season-sync.yml`. It invokes the same
+current-season scheduler and window gates: outside an eligible race window it
+only reads the published database calendar and never polls Jolpica; inside the
+window it uses the existing sync advisory lock. The automatic watch remains
+anchored at scheduled start +6 hours and expires 24 hours later.
+
+To enable the runner, configure the repository Actions secrets
+`F1_CIRCUIT_DATABASE_URL` (approved server-side database role) and
+`SUPABASE_DATABASE_CA_PEM` (the verified database CA PEM). The workflow writes
+the CA only to the ephemeral runner's temporary directory and removes it at
+job exit; it contains references to secrets only and does not provision or
+copy them. Then use **Actions → Current-season race results check → Run
+workflow** for the initial smoke check. Outside a race window this verifies
+the credentials, database connection, and scheduler's database-only path. To
+exercise a provider import, dispatch only while a race's configured window is
+active and its publication is incomplete.
+
+Automatic provider reads have a four-minute total budget, including calendar,
+pagination, retries and rate-limit waits. Results and championship standings
+are fetched before optional qualifying, sprint, pit-stop and lap pages. Prior
+enrichments survive unavailable optional reads. This leaves room within the
+ten-minute Actions job limit for publication and cleanup, but database statements
+are bounded individually (15 seconds), so the total database publication time
+is not guaranteed. The API shutdown deadline is ten seconds; an in-flight
+import may be interrupted, with an uncommitted publication rolled back by
+PostgreSQL. A stale running audit row is retried through the advisory lock.
+
+GitHub scheduled jobs are best-effort: they can be delayed or dropped, and a
+public repository with no activity for 60 days can have scheduled workflows
+disabled. The cron is intentionally offset to minutes 7, 22, 37, and 52 to
+avoid the top of the hour; this is not a guaranteed 15-minute service-level
+cadence or an operational guarantee before the workflow is pushed, secrets are
+configured, and a manual dispatch succeeds. No paid Render upgrade is assumed.
+
 ## Render configuration
 
 1. Select this repository's Dockerfile for the web service.
 2. Supply NODE_ENV=production, DATABASE_URL, DATABASE_SSL=true, LOG_LEVEL and exact CORS_ALLOWED_ORIGINS. Render supplies PORT.
 3. Configure `/health/ready`. An empty migrated database is ready, but reads return 503 until data is imported.
-4. Run imports from a separate approved scheduler/operator environment. No maintenance HTTP endpoint is exposed.
+4. Keep `AUTO_SYNC_ENABLED=true` for in-process catch-up and configure the optional GitHub Actions runner as described above for best-effort checks while a Free instance sleeps. The runner uses the approved server-side database role; no maintenance HTTP endpoint is exposed for automated imports.
 5. Run health and known/unknown-resource/CORS smoke checks after deployment.
 
 The image uses an unprivileged node user and production dependencies only. No persistent volume is required. Logs omit queries, request bodies and credentials. The optional question interpreter and fallback rephraser run server-side only when enabled; they do not receive database tools and do not provide final archive answers. No visitor analytics or tracking cookies are added. Shutdown stops HTTP intake and closes database connections with a bounded timeout.

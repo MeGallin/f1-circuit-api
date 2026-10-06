@@ -7,15 +7,55 @@ function addLeaderboardRows(repository) {
   const source = repository.sets.get(`results:${sessionId}`);
   const rowsByYear = {
     2018: [
-      { driverId: 'driver:example-one', driver: 'Example One', constructorId: 'constructor:example-team', constructor: 'Example Team', position: 1, points: '25', fastest: true },
-      { driverId: 'driver:example-two', driver: 'Example Two', constructorId: 'constructor:second-team', constructor: 'Second Team', position: 2, points: '18', fastest: false },
+      {
+        driverId: 'driver:example-one',
+        driver: 'Example One',
+        constructorId: 'constructor:example-team',
+        constructor: 'Example Team',
+        position: 1,
+        points: '25',
+        fastest: true,
+      },
+      {
+        driverId: 'driver:example-two',
+        driver: 'Example Two',
+        constructorId: 'constructor:second-team',
+        constructor: 'Second Team',
+        position: 2,
+        points: '18',
+        fastest: false,
+      },
     ],
     2019: [
-      { driverId: 'driver:example-one', driver: 'Example One', constructorId: 'constructor:example-team', constructor: 'Example Team', position: 2, points: '18', fastest: true },
-      { driverId: 'driver:example-two', driver: 'Example Two', constructorId: 'constructor:second-team', constructor: 'Second Team', position: 1, points: '25', fastest: false },
+      {
+        driverId: 'driver:example-one',
+        driver: 'Example One',
+        constructorId: 'constructor:example-team',
+        constructor: 'Example Team',
+        position: 2,
+        points: '18',
+        fastest: true,
+      },
+      {
+        driverId: 'driver:example-two',
+        driver: 'Example Two',
+        constructorId: 'constructor:second-team',
+        constructor: 'Second Team',
+        position: 1,
+        points: '25',
+        fastest: false,
+      },
     ],
     2020: [
-      { driverId: 'driver:example-one', driver: 'Example One', constructorId: 'constructor:second-team', constructor: 'Second Team', position: 1, points: '25', fastest: true },
+      {
+        driverId: 'driver:example-one',
+        driver: 'Example One',
+        constructorId: 'constructor:second-team',
+        constructor: 'Second Team',
+        position: 1,
+        points: '25',
+        fastest: true,
+      },
     ],
   };
   const keys = Object.keys(rowsByYear).map(
@@ -36,7 +76,9 @@ function addLeaderboardRows(repository) {
         ...source.items[0].entry,
         id: `${session}:${entry.driverId}`,
         constructor: { id: entry.constructorId, displayName: entry.constructor },
-        drivers: [{ ...source.items[0].entry.drivers[0], id: entry.driverId, displayName: entry.driver }],
+        drivers: [
+          { ...source.items[0].entry.drivers[0], id: entry.driverId, displayName: entry.driver },
+        ],
       },
       fastestLap: entry.fastest ? { rank: 1, lapNumber: 30 + rowIndex, durationMs: 90000 } : null,
     }));
@@ -57,7 +99,10 @@ test('question matrix supports natural leaderboard wording and combined constrai
     .expect(200);
   assert.equal(fastest.body.data.questionResult.status, 'answered');
   assert.equal(fastest.body.data.questionResult.resolvedIntent, 'fastest_lap_leaderboard');
-  assert.match(fastest.body.data.questionResult.values.answer, /Example One recorded 3 fastest laps/);
+  assert.match(
+    fastest.body.data.questionResult.values.answer,
+    /Example One recorded 3 fastest laps/,
+  );
 
   const podiums = await request(app)
     .post('/api/v1/questions')
@@ -67,7 +112,10 @@ test('question matrix supports natural leaderboard wording and combined constrai
     .expect(200);
   assert.equal(podiums.body.data.questionResult.status, 'answered');
   assert.equal(podiums.body.data.questionResult.resolvedIntent, 'podium_leaderboard');
-  assert.match(podiums.body.data.questionResult.values.answer, /Example One recorded 3 podium finishes/);
+  assert.match(
+    podiums.body.data.questionResult.values.answer,
+    /Example One recorded 3 podium finishes/,
+  );
 
   const wins = await request(app)
     .post('/api/v1/questions')

@@ -1,4 +1,4 @@
-import { Jolpica } from '../providers/jolpica/client.js';
+import { Jolpica, DEFAULT_WEEKEND_TIMEOUT_MS } from '../providers/jolpica/client.js';
 import { SyncService } from '../services/sync.service.js';
 import { runSync } from './run-sync.js';
 
@@ -79,7 +79,11 @@ async function currentSeasonEvents(repository, now) {
     .map((event) => ({ event, startAt: eventStart(event), round: Number(event.round) }))
     .filter(
       ({ event, startAt, round }) =>
-        Number.isInteger(round) && round > 0 && Number.isFinite(startAt) && event.id,
+        Number.isInteger(round) &&
+        round > 0 &&
+        Number.isFinite(startAt) &&
+        event.id &&
+        !['cancelled', 'canceled', 'postponed'].includes(String(event.status).trim().toLowerCase()),
     )
     .sort((a, b) => a.startAt - b.startAt || a.round - b.round);
   return { snapshot, year, events };
@@ -429,7 +433,9 @@ export function createJolpicaSeasonScheduler({
     cancelTimer,
     importRound: ({ year, round }) =>
       runSync(pool, 'jolpica', `${year}:${round}`, async () => {
-        const bundle = await provider.weekend(year, round);
+        const bundle = await provider.weekend(year, round, {
+          totalTimeoutMs: DEFAULT_WEEKEND_TIMEOUT_MS,
+        });
         if (!bundle?.race?.Results?.length) {
           const error = new Error(`Jolpica has not published results for ${year} round ${round}.`);
           error.code = 'RACE_RESULTS_NOT_PUBLISHED';
@@ -454,7 +460,7 @@ export function createJolpicaSeasonScheduler({
           throw error;
         }
         // normalizeWeekend marks its generated race session completed from non-empty Results.
-        return service.publish(bundle, 'jolpica');
+        return service.publish(bundle, 'jolpica', null, { preserveExisting: true });
       }),
   });
 }

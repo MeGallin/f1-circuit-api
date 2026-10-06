@@ -1,0 +1,44 @@
+name: Current-season race results check
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f1-circuit-current-season-sync
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AUTO_SYNC_ENABLED: 'true'
+      DATABASE_URL: ${{ secrets.F1_CIRCUIT_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Run one bounded scheduler check
+        env:
+          DATABASE_CA_PEM: ${{ secrets.SUPABASE_DATABASE_CA_PEM }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABASE_URL:-}" || -z "${DATABASE_CA_PEM:-}" ]]; then
+            echo 'Configure F1_CIRCUIT_DATABASE_URL and SUPABASE_DATABASE_CA_PEM repository secrets.' >&2
+            exit 1
+          fi
+          ca_file="$(mktemp "$RUNNER_TEMP/supabase-ca.XXXXXX.pem")"
+          trap 'rm -f "$ca_file"' EXIT
+          printf '%s' "$DATABASE_CA_PEM" > "$ca_file"
+          chmod 600 "$ca_file"
+          export DATABASE_SSL_CA_FILE="$ca_file"
+          node scripts/run-current-season-scheduler-once.js

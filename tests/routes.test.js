@@ -446,10 +446,7 @@ test('natural-language questions return database-backed answers without a model'
       text: 'For the 2024 Synthetic Grand Prix, who were the top three finishers, which constructors did they represent, how many points did they score, and who set the fastest lap?',
     })
     .expect(200);
-  assert.equal(
-    compoundSummary.body.data.questionResult.resolvedIntent,
-    'event_compound_summary',
-  );
+  assert.equal(compoundSummary.body.data.questionResult.resolvedIntent, 'event_compound_summary');
   assert.deepEqual(
     compoundSummary.body.data.questionResult.values.podium.map((entry) => [
       entry.position,
@@ -462,10 +459,7 @@ test('natural-language questions return database-backed answers without a model'
       [3, 'Example Three', 15],
     ],
   );
-  assert.equal(
-    compoundSummary.body.data.questionResult.values.fastestLapDrivers,
-    'Example Two',
-  );
+  assert.equal(compoundSummary.body.data.questionResult.values.fastestLapDrivers, 'Example Two');
   repository.sets.set(`results:${sessionId}`, originalCompoundResults);
 
   const fastestLeaderboardKeys = [2018, 2019, 2020].map(
@@ -486,12 +480,18 @@ test('natural-language questions return database-backed answers without a model'
             id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
             displayName: index === 2 ? 'Second Team' : 'Example Team',
           },
-          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+          drivers: [
+            {
+              ...leaderboardSet.items[0].entry.drivers[0],
+              id: 'driver:example-one',
+              displayName: 'Example One',
+            },
+          ],
         },
         fastestLap: { rank: 1, lapNumber: 20 + index, durationMs: 90000 + index },
       },
     ];
-  repository.sets.set(key, leaderboardSet);
+    repository.sets.set(key, leaderboardSet);
   });
 
   const fastestLapLeaderboard = await request(app)
@@ -532,7 +532,13 @@ test('natural-language questions return database-backed answers without a model'
             id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
             displayName: index === 2 ? 'Second Team' : 'Example Team',
           },
-          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+          drivers: [
+            {
+              ...leaderboardSet.items[0].entry.drivers[0],
+              id: 'driver:example-one',
+              displayName: 'Example One',
+            },
+          ],
         },
       },
     ];
@@ -574,7 +580,13 @@ test('natural-language questions return database-backed answers without a model'
             id: index === 2 ? 'constructor:second-team' : 'constructor:example-team',
             displayName: index === 2 ? 'Second Team' : 'Example Team',
           },
-          drivers: [{ ...leaderboardSet.items[0].entry.drivers[0], id: 'driver:example-one', displayName: 'Example One' }],
+          drivers: [
+            {
+              ...leaderboardSet.items[0].entry.drivers[0],
+              id: 'driver:example-one',
+              displayName: 'Example One',
+            },
+          ],
         },
       },
     ];

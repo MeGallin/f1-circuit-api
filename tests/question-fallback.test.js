@@ -30,7 +30,11 @@ test('unsupported questions include a concrete rewording suggestion', async () =
 
 test('interpreter failures include a safe retry suggestion', async () => {
   const result = await answerWith(
-    { interpret: async () => { throw new Error('test interpreter failure'); } },
+    {
+      interpret: async () => {
+        throw new Error('test interpreter failure');
+      },
+    },
     'Who won the archive?',
   );
 
@@ -73,16 +77,13 @@ test('failed answers use the model only to improve the rewording suggestion', as
         };
       },
     },
-    'What is the archive\'s favourite colour?',
+    "What is the archive's favourite colour?",
   );
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].text, "What is the archive's favourite colour?");
   assert.equal(calls[0].failure.reasonCode, 'QUESTION_INTENT_UNSUPPORTED');
-  assert.equal(
-    result.result.suggestion,
-    'Which circuit hosted the 2022 Italian Grand Prix?',
-  );
+  assert.equal(result.result.suggestion, 'Which circuit hosted the 2022 Italian Grand Prix?');
 });
 
 test('deterministic guidance remains when the model cannot rephrase', async () => {
@@ -95,7 +96,7 @@ test('deterministic guidance remains when the model cannot rephrase', async () =
         throw new Error('test rephrase failure');
       },
     },
-    'What is the archive\'s favourite colour?',
+    "What is the archive's favourite colour?",
   );
 
   assert.equal(result.result.status, 'unsupported');

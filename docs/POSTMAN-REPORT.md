@@ -99,6 +99,8 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Success          | getEvidence                  | 200 |
 | Validation       | getEvidence                  | 400 |
 | Missing resource | getEvidence                  | 404 |
+| Success          | refreshRaceData              | 200 |
+| Validation       | refreshRaceData              | 400 |
 | Success          | askQuestion                  | 200 |
 | Validation       | askQuestion                  | 400 |
 | Success          | getAnalyticsDashboard        | 200 |
@@ -117,8 +119,8 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Validation       | reversed lap range           | 400 |
 | Maintenance      | no public sync route         | 404 |
 
-Requests: 112. Assertions: 188. Failures: 0.
+Requests: 114. Assertions: 192. Failures: 0.
 
-Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. Sync/import are operator CLI commands, not public endpoints.
+Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. The public refresh endpoint is restricted to a current-season source check; arbitrary sync/import remain operator CLI commands.
 
 Limits: repository double does not verify Supabase connectivity, RLS, PostgreSQL locking, provider availability or container runtime. These require separate integration checks.

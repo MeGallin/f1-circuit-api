@@ -7890,6 +7890,60 @@
         "x-reject-unknown-query-parameters": true
       }
     },
+    "/refresh-data": {
+      "post": {
+        "operationId": "refreshRaceData",
+        "summary": "Check and publish the latest finished race",
+        "description": "Checks the latest scheduled race whose start time has passed for the current season, then publishes source results when available. This explicit user-triggered recovery may run after the automatic 24-hour polling window. The round and provider are selected by the server; arbitrary import parameters are not accepted.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefreshDataRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checked latest race refresh outcome.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RefreshDataResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider or database temporarily unavailable",
+            "headers": {
+              "Retry-After": { "schema": { "type": "string", "minLength": 1 } }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true
+      }
+    },
     "/questions": {
       "post": {
         "operationId": "askQuestion",
@@ -11514,6 +11568,29 @@
           "fastestLap",
           "metrics"
         ],
+        "additionalProperties": false
+      },
+      "RefreshDataRequest": {
+        "type": "object",
+        "properties": {
+          "season": { "type": "integer", "minimum": 1950, "maximum": 2200 }
+        },
+        "required": ["season"],
+        "additionalProperties": false
+      },
+      "RefreshDataResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["updated", "unchanged", "pending", "busy", "cooldown", "no-race"]
+          },
+          "message": { "type": "string", "minLength": 1 },
+          "checkedAt": { "type": ["string", "null"], "format": "date-time" },
+          "publicationId": { "type": ["string", "null"], "minLength": 1 },
+          "retryAfterMs": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["status", "message", "checkedAt", "publicationId"],
         "additionalProperties": false
       },
       "QuestionRequest": {

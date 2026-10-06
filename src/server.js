@@ -5,14 +5,23 @@ import { PublicationRepository } from './repositories/publication.repository.js'
 import { createApp } from './app.js';
 import { createRouter } from './routes/index.js';
 import { createJolpicaSeasonScheduler } from './jobs/current-season-scheduler.js';
+import { createJolpicaLatestRaceRefresh } from './jobs/latest-race-refresh.js';
+import { Jolpica } from './providers/jolpica/client.js';
 const config = loadConfig();
 const logger = createLogger(config.logLevel);
 const pool = createPool(config);
 pool.on('error', () => logger.error('Idle database connection failed.'));
 const repository = new PublicationRepository(pool);
-const app = createApp({ repository, config, logger, router: createRouter(repository, { config }) });
+const provider = new Jolpica();
+const manualRefresh = createJolpicaLatestRaceRefresh({ pool, repository, provider });
+const app = createApp({
+  repository,
+  config,
+  logger,
+  router: createRouter(repository, { config, manualRefresh }),
+});
 const server = app.listen(config.port, () => logger.info({ port: config.port }, 'API listening'));
-const scheduler = createJolpicaSeasonScheduler({ pool, repository, config, logger });
+const scheduler = createJolpicaSeasonScheduler({ pool, repository, config, logger, provider });
 server.once('listening', () => scheduler.start());
 let stopping = false;
 async function stop() {

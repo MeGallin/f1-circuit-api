@@ -54,3 +54,39 @@ test('bad normalization cannot become a publication', async () => {
   );
   assert.equal(published, false);
 });
+
+test('empty refresh enrichment retains old records, source evidence, and provenance', async () => {
+  const repo = new MemoryRepository();
+  const key = 'laps:session:event:2026:round-16:race';
+  const previous = {
+    key,
+    schema: 'Lap',
+    items: [{ id: 'lap:one', evidenceId: 'evidence:old-laps', durationMs: 91234 }],
+    evidenceId: 'evidence:old-laps',
+    coverage: 'complete',
+    verification: 'source-only',
+    warnings: [],
+    provenance: { retrievedAt: '2026-09-27T00:00:00.000Z', sources: [{ id: 'openf1' }] },
+  };
+  repo.sets.set(key, structuredClone(previous));
+  const refresh = {
+    key,
+    schema: 'Lap',
+    items: [],
+    evidenceId: 'evidence:new-results-only',
+    coverage: 'unavailable',
+    verification: 'source-only',
+    warnings: [],
+    provenance: { retrievedAt: '2026-10-05T19:46:00.000Z', sources: [{ id: 'jolpica' }] },
+  };
+
+  await new SyncService(repo).publishSets({ sets: [refresh], aliases: {} }, [], 'jolpica');
+
+  const retained = repo.sets.get(key);
+  assert.equal(retained.items[0].durationMs, 91234);
+  assert.equal(retained.items[0].evidenceId, 'evidence:old-laps');
+  assert.equal(retained.evidenceId, 'evidence:old-laps');
+  assert.deepEqual(retained.provenance, previous.provenance);
+  assert.equal(retained.coverage, 'partial');
+  assert.ok(retained.warnings.some((warning) => warning.code === 'RETAINED_SNAPSHOT'));
+});

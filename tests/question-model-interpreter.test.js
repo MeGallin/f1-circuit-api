@@ -11,7 +11,9 @@ import {
 import { appFixture } from './helpers.js';
 
 test('constructor title intent is part of the model contract', () => {
-  assert.ok(questionIntentSchema.properties.intent.enum.includes('constructor_championship_leaderboard'));
+  assert.ok(
+    questionIntentSchema.properties.intent.enum.includes('constructor_championship_leaderboard'),
+  );
   assert.ok(questionIntentSchema.properties.intent.enum.includes('constructor_rivalry_comparison'));
   assert.ok(questionIntentSchema.properties.metric.anyOf[0].enum.includes('constructors_titles'));
   assert.ok(questionIntentSchema.properties.metric.anyOf[0].enum.includes('constructor_rivalry'));
@@ -41,7 +43,7 @@ test('model fallback is constrained to a question-only structured response', asy
   };
 
   const result = await interpreter.rephrase({
-    text: 'What is the archive\'s favourite colour?',
+    text: "What is the archive's favourite colour?",
     context: { currentYear: 2026 },
     failure: { status: 'unsupported', reasonCode: 'QUESTION_INTENT_UNSUPPORTED' },
   });

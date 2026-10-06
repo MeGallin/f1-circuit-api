@@ -48,7 +48,9 @@ export function collection() {
       query: e.query,
       body: op.method === 'post' ? e.body : undefined,
       checks: [
-        "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });",
+        op.operationId === 'refreshRaceData'
+          ? "pm.test('Refresh outcome contract', function () { const b=pm.response.json(); pm.expect(b.status).to.eql('no-race'); pm.expect(b.message).to.be.a('string'); pm.expect(b.checkedAt).to.eql(null); pm.expect(b.publicationId).to.eql(null); pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'); });"
+          : "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });",
       ],
     });
     add(`Validation | ${op.operationId}`, op.method, e.path, 400, {

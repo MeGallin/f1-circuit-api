@@ -1783,6 +1783,56 @@
       ]
     },
     {
+      "name": "Success | refreshRaceData",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/refresh-data",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"season\":2026}",
+          "options": { "raw": { "language": "json" } }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Refresh outcome contract', function () { const b=pm.response.json(); pm.expect(b.status).to.eql('no-race'); pm.expect(b.message).to.be.a('string'); pm.expect(b.checkedAt).to.eql(null); pm.expect(b.publicationId).to.eql(null); pm.expect(pm.response.headers.get('Cache-Control')).to.eql('no-store'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | refreshRaceData",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/refresh-data?unknownParameter=invalid",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"season\":2026}",
+          "options": { "raw": { "language": "json" } }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Success | askQuestion",
       "request": {
         "method": "POST",

@@ -100,8 +100,7 @@ function parseCompoundEventQuestion(lower) {
   const asksForConstructors = /\b(?:constructors?|manufacturers?|teams?)\b/.test(lower);
   const asksForPoints = /\bpoints?\b/.test(lower);
   const asksForFastestLap = /\bfastest\s+lap\b/.test(lower);
-  if (!asksForPodium || !asksForConstructors || !asksForPoints || !asksForFastestLap)
-    return null;
+  if (!asksForPodium || !asksForConstructors || !asksForPoints || !asksForFastestLap) return null;
   return { intent: 'event_compound_summary' };
 }
 
@@ -116,8 +115,7 @@ function parsePodiumLeaderboardQuestion(lower) {
   const asksForDriver = /\bwho\b|\bwhich\s+driver\b/.test(lower);
   const asksForMost = /\b(?:most|highest|greatest)\b/.test(lower);
   const asksForPodiums = /\bpodiums?\b|\bpodium\s+finishes?\b/.test(lower);
-  if (!asksForDriver || !asksForMost || !asksForPodiums || /\bposition\b/.test(lower))
-    return null;
+  if (!asksForDriver || !asksForMost || !asksForPodiums || /\bposition\b/.test(lower)) return null;
   return { intent: 'podium_leaderboard' };
 }
 
@@ -358,11 +356,9 @@ export class QuestionService {
     if (fastestLapLeaderboard)
       return this.executeIntent(fastestLapLeaderboard, context, helpers, text);
     const podiumLeaderboard = parsePodiumLeaderboardQuestion(lower);
-    if (podiumLeaderboard)
-      return this.executeIntent(podiumLeaderboard, context, helpers, text);
+    if (podiumLeaderboard) return this.executeIntent(podiumLeaderboard, context, helpers, text);
     const raceWinLeaderboard = parseRaceWinLeaderboardQuestion(lower);
-    if (raceWinLeaderboard)
-      return this.executeIntent(raceWinLeaderboard, context, helpers, text);
+    if (raceWinLeaderboard) return this.executeIntent(raceWinLeaderboard, context, helpers, text);
     const finishingPosition = parseFinishingPositionQuestion(lower);
     if (finishingPosition)
       return this.executeIntent(
@@ -535,16 +531,11 @@ export class QuestionService {
           },
           context,
           helpers,
-        text,
-      );
+          text,
+        );
     }
-    const constructorQuestion = await this.detectDriverConstructorQuestion(
-      text,
-      context,
-      helpers,
-    );
-    if (constructorQuestion)
-      return this.executeIntent(constructorQuestion, context, helpers, text);
+    const constructorQuestion = await this.detectDriverConstructorQuestion(text, context, helpers);
+    if (constructorQuestion) return this.executeIntent(constructorQuestion, context, helpers, text);
     if (/\bpit\s+stops?\b/.test(lower)) {
       const metric = /\b(fastest|quickest)\b/.test(lower)
         ? 'fastest_pit_stop'
@@ -880,9 +871,7 @@ export class QuestionService {
     const lower = normalize(text);
     const asksComparison =
       /\b(?:compare|comparison|differ|between|versus|vs)\b/.test(lower) &&
-      /\b(?:race|races|raced|statistics|stats|results|starts|wins|podiums|points)\b/.test(
-        lower,
-      );
+      /\b(?:race|races|raced|statistics|stats|results|starts|wins|podiums|points)\b/.test(lower);
     const asksBreakdown =
       /\b(?:each|every|all)\b/.test(lower) &&
       /\b(?:manufacturers?|constructors?|teams?)\b/.test(lower) &&
@@ -2166,20 +2155,18 @@ export class QuestionService {
       if (!eventId) continue;
       const constructor = row.entry?.constructor;
       for (const driver of driverNames(row)) {
-        const record =
-          drivers.get(driver.id) || {
-            driver: driver.displayName,
-            events: new Set(),
-            constructors: new Map(),
-          };
+        const record = drivers.get(driver.id) || {
+          driver: driver.displayName,
+          events: new Set(),
+          constructors: new Map(),
+        };
         if (record.events.has(eventId)) continue;
         record.events.add(eventId);
         const constructorId = constructor?.id || constructor?.displayName || 'unknown';
-        const constructorRecord =
-          record.constructors.get(constructorId) || {
-            constructor: constructor?.displayName || 'Not supplied',
-            events: new Set(),
-          };
+        const constructorRecord = record.constructors.get(constructorId) || {
+          constructor: constructor?.displayName || 'Not supplied',
+          events: new Set(),
+        };
         constructorRecord.events.add(eventId);
         record.constructors.set(constructorId, constructorRecord);
         drivers.set(driver.id, record);
@@ -2200,7 +2187,10 @@ export class QuestionService {
   }
 
   async fastestLapLeaderboard(_context, originalText, { get, keys }) {
-    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const range = yearRange(
+      originalText,
+      contextWith({ currentYear: new Date().getUTCFullYear() }),
+    );
     const resultSets = await Promise.all((await keys('results:')).map(get));
     const rows = resultSets.flatMap((set) =>
       (set?.items || []).filter((row) => {
@@ -2256,7 +2246,10 @@ export class QuestionService {
   }
 
   async podiumLeaderboard(_context, originalText, { get, keys }) {
-    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const range = yearRange(
+      originalText,
+      contextWith({ currentYear: new Date().getUTCFullYear() }),
+    );
     const resultSets = await Promise.all((await keys('results:')).map(get));
     const rows = resultSets.flatMap((set) =>
       (set?.items || []).filter((row) => {
@@ -2313,7 +2306,10 @@ export class QuestionService {
   }
 
   async raceWinLeaderboard(_context, originalText, { get, keys }) {
-    const range = yearRange(originalText, contextWith({ currentYear: new Date().getUTCFullYear() }));
+    const range = yearRange(
+      originalText,
+      contextWith({ currentYear: new Date().getUTCFullYear() }),
+    );
     const resultSets = await Promise.all((await keys('results:')).map(get));
     const rows = resultSets.flatMap((set) =>
       (set?.items || []).filter((row) => {
@@ -3690,8 +3686,7 @@ export class QuestionService {
   result(questionResult, sets) {
     const available = sets.filter(Boolean);
     const first = available[0];
-    const suggestion =
-      questionResult.suggestion || fallbackSuggestion(questionResult);
+    const suggestion = questionResult.suggestion || fallbackSuggestion(questionResult);
     return {
       result: suggestion ? { ...questionResult, suggestion } : questionResult,
       dataset: {

@@ -52,7 +52,18 @@ export function appFixture(repository = new MemoryRepository()) {
     repository,
     app: createApp({
       repository,
-      router: createRouter(repository),
+      router: createRouter(repository, {
+        manualRefresh: {
+          async refresh() {
+            return {
+              status: 'no-race',
+              message: 'There is no finished scheduled race in the current season to check.',
+              checkedAt: null,
+              publicationId: null,
+            };
+          },
+        },
+      }),
       config: { origins: ['https://f1.livenotice.co.uk', 'http://localhost:5173'] },
       logger: { info() {}, error() {} },
     }),
@@ -92,9 +103,12 @@ export function exampleRequest(operation, repository) {
     path:
       '/api/v1' + operation.path.replace(/\{([^}]+)\}/g, (_, key) => encodeURIComponent(ids[key])),
     query,
-    body: {
-      text: 'Who won?',
-      context: { year: 2024, eventId, sessionId, driverId: null, constructorId: null },
-    },
+    body:
+      operation.operationId === 'refreshRaceData'
+        ? { season: new Date().getUTCFullYear() }
+        : {
+            text: 'Who won?',
+            context: { year: 2024, eventId, sessionId, driverId: null, constructorId: null },
+          },
   };
 }

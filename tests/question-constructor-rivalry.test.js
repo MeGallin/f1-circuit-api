@@ -125,10 +125,10 @@ test('constructor rivalry compares aggregate race wins and world titles over the
 
   assert.equal(result.result.status, 'answered');
   assert.equal(result.result.resolvedIntent, 'constructor_rivalry_comparison');
-  assert.deepEqual(result.result.values.competitors.map((entry) => entry.constructor), [
-    'Alpha',
-    'Beta',
-  ]);
+  assert.deepEqual(
+    result.result.values.competitors.map((entry) => entry.constructor),
+    ['Alpha', 'Beta'],
+  );
   assert.deepEqual(result.result.values.comparison, {
     winsGap: 1,
     titlesGap: 1,
@@ -165,12 +165,9 @@ test('constructor rivalry is unavailable when either metric lacks published cove
 
 test('constructor rivalry clarifies when the period is not resolved', async () => {
   const { repository } = appFixture();
-  const service = new QuestionService(
-    repository,
-    {
-      interpreter: rivalryInterpreter({ fromYear: null, toYear: null }),
-    },
-  );
+  const service = new QuestionService(repository, {
+    interpreter: rivalryInterpreter({ fromYear: null, toYear: null }),
+  });
 
   const result = await service.answer(
     { text: 'Which two manufacturers were the closest rivals?' },

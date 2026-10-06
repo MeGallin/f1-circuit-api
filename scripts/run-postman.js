@@ -42,7 +42,7 @@ try {
     '',
     `Requests: ${summary.run.stats.requests.total}. Assertions: ${summary.run.stats.assertions.total}. Failures: ${failures.length}.`,
     '',
-    'Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. Sync/import are operator CLI commands, not public endpoints.',
+    'Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. The public refresh endpoint is restricted to a current-season source check; arbitrary sync/import remain operator CLI commands.',
     '',
     'Limits: repository double does not verify Supabase connectivity, RLS, PostgreSQL locking, provider availability or container runtime. These require separate integration checks.',
     ...failures.map((f) => `- ${f.name}: ${f.message}`),

@@ -53,6 +53,10 @@ test('SQL repository publishes versioned normalized records and replaces data wi
   assert.notEqual(first, second);
   assert.equal((await repo.snapshot()).id, second);
   assert.equal((await repo.get('test', second)).items.length, 1);
+  const batch = await repo.getMany(['test', 'missing', 'test'], second);
+  assert.equal(batch.size, 1);
+  assert.deepEqual(batch.get('test'), await repo.get('test', second));
+  assert.equal((await repo.getMany([], second)).size, 0);
   assert.equal(await repo.resolve('test:alias', second), 'one');
   assert.equal((await repo.get('test', first)).items[0].year, 2000);
   await pool.query('INSERT INTO publications(id,content_hash,provenance) VALUES($1,$2,$3)', [
@@ -68,6 +72,39 @@ test('SQL repository publishes versioned normalized records and replaces data wi
   assert.equal((await repo.snapshot(first)).id, first);
   assert.equal((await repo.snapshot()).id, second);
   await pool.end();
+});
+test('publication writes many records in bounded batches, not one remote query per row', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, parameters) {
+      calls.push({ sql, parameters });
+      return { rows: [] };
+    },
+    release() {},
+  };
+  const repo = new PublicationRepository({
+    async connect() {
+      return client;
+    },
+  });
+  await repo.publish(
+    [
+      {
+        key: 'many',
+        schema: 'Season',
+        items: Array.from({ length: 1200 }, (_, i) => ({ id: `row:${i}`, year: 2000 })),
+      },
+    ],
+    {},
+    {},
+  );
+  const inserts = calls.filter(({ sql }) => sql.startsWith('INSERT INTO normalized_records'));
+  assert.equal(inserts.length, 3);
+  assert.equal(
+    inserts.reduce((sum, { parameters }) => sum + parameters.length / 5, 0),
+    1200,
+  );
+  assert.ok(calls.some(({ sql }) => sql === 'COMMIT'));
 });
 test('publication failure rolls back and always releases connection', async () => {
   const calls = [];
