@@ -2,6 +2,12 @@
 
 The API is a stateless Docker web service intended for Render. PostgreSQL is external, hosted by Supabase. The browser is a separate static application at `https://f1.livenotice.co.uk`.
 
+## Release verification — 6 October 2026
+
+Local logs confirm API `734a4ed` and companion client `fb7cbd0`; the user confirmed both pushes. Deployment and production/live smoke verification for these commits are **PENDING**. The local review passed API `npm run check` (133 tests, lint/format, contract checks, Newman 114 requests / 192 assertions) and client `npm run check` (141 tests, lint, production build). These fixture/local checks do not establish production behavior. See [review evidence](FUNCTIONALITY-VALIDATION.md).
+
+Actions secrets `F1_CIRCUIT_DATABASE_URL` / `SUPABASE_DATABASE_CA_PEM`, successful workflow dispatch and real PostgreSQL multi-process importer-lock/cooldown verification remain unverified. The instructions below are setup/run procedures, not a record that they have been completed. No live imports or deployment checks were performed for this documentation update.
+
 ## Database setup
 
 Supply the Supabase session-pooler PostgreSQL URL through DATABASE_URL with TLS enabled. Certificate verification remains enabled. Use an approved server-side database role. The migration enables RLS and defines no anonymous/browser policies; a dedicated non-owner role needs explicit reviewed grants/policies. A connection string alone does not grant access. Do not expose Supabase/database credentials to the browser.
@@ -26,6 +32,8 @@ These illustrate arguments, not locally installed releases. F1DB needs a pinned 
 OpenF1 requires OPENF1_ENABLED=true, a previously imported backbone session and explicit upstream session key. Date/kind must match and the session must have ended. No live subscription is used. Shared-drive and unsupported historical mappings remain explicit limitations.
 
 Jolpica requests use a custom user agent, eight-second serialization, bounded paging, timeouts, response-size caps and bounded retries. Weekend import covers that round plus the year calendar; repeat for other rounds. No public sync endpoint exists. Sync commands are serialized with a database advisory lock. Failed publication retains the previous data; no synthetic production seed is provided.
+
+The current-season manual source-check endpoint described below is the only public refresh route; it does not authorize arbitrary operator sync parameters.
 
 The API can optionally watch each race in the current published season for
 results. The scheduler is disabled by default; set `AUTO_SYNC_ENABLED=true` to
@@ -76,11 +84,17 @@ successful response distinguishes `updated` (a publication was activated),
 `no-race`. Updated/unchanged/pending/busy/cooldown responses include the
 server's remaining `retryAfterMs`; source-check outcomes include the check
 time. Cooldown is rechecked under the shared lock before creating an audit
-run. Provider/network failures return the standard API 503 error
+run; rejection does not record a failed run or extend the cooldown. Cleanup
+preserves the original importer error if its failure audit cannot be written,
+and destroys a connection if releasing its advisory lock fails.
+Provider/network failures return the standard API 503 error
 envelope. The importer prioritizes race results and treats qualifying and
 standings as optional enrichment; it does not fetch lap/pit-stop pages. A
 failed or pending check does not replace the active database publication, so
-the client can keep/reload its existing published snapshot.
+the client can keep/reload its existing published snapshot. Source reads have
+a 29-second total budget; database publication is additional work. Current
+refresh preserves omitted enrichments while accepting core source corrections;
+see [retention behavior](ENRICHMENT-RETENTION.md).
 
 ## Free-instance scheduled checks
 
@@ -117,8 +131,9 @@ GitHub scheduled jobs are best-effort: they can be delayed or dropped, and a
 public repository with no activity for 60 days can have scheduled workflows
 disabled. The cron is intentionally offset to minutes 7, 22, 37, and 52 to
 avoid the top of the hour; this is not a guaranteed 15-minute service-level
-cadence or an operational guarantee before the workflow is pushed, secrets are
-configured, and a manual dispatch succeeds. No paid Render upgrade is assumed.
+cadence or an operational guarantee. The user confirmed the code push, but
+secrets setup and a successful manual dispatch remain unverified as of
+6 October 2026. No paid Render upgrade is assumed.
 
 ## Render configuration
 

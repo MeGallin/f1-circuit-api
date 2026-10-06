@@ -1,5 +1,9 @@
 # Implemented coverage and release boundaries
 
+## Current review checkpoint — 6 October 2026
+
+Local history confirms API `734a4ed` and companion client `fb7cbd0`; both pushes are user-confirmed. Deployment and production/live smoke verification are **PENDING**. Recorded local checks passed 133 API tests, contract/lint/format checks and Newman 114 requests / 192 assertions; the companion client passed 141 tests, lint and production build. The current-season refresh route, importer cooldown/cleanup, bounded automatic reads and enrichment-preserving source corrections are documented in [functionality validation](FUNCTIONALITY-VALIDATION.md) and [deployment operations](DEPLOYMENT.md). Actions secrets/dispatch and real PostgreSQL multi-process locking remain unverified. Earlier foundation scope and operational observations below are not a new production audit.
+
 This delivery implements an API foundation and a historical vertical slice. All 34 contract operations are registered and schema checked; **route coverage is not equivalent to full historical dataset coverage**. The remaining product breadth is visible through unavailable states rather than fabricated responses.
 
 | Capability                                              | Current implementation                                                                                                                 |

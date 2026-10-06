@@ -1,5 +1,17 @@
 # Held, shared OpenF1 staging
 
+## Published race-refresh retention — 6 October 2026
+
+API commit `734a4ed` is confirmed in local history; the companion client is `fb7cbd0`. Both pushes are user-confirmed, while deployment and production/live smoke verification remain **PENDING**. This update concerns refreshes of published race data; the held OpenF1 staging design and September measurements below remain historical records.
+
+Manual refresh uses the published full calendar and existing canonical event IDs, fetches core race results plus optional qualifying/standings and skips heavy lap/pit-stop imports. Automatic refresh retains its qualifying/sprint/pit-stop/lap breadth, fetches results and standings first, and bounds all provider reads/waits/retries to four minutes. Both refresh publication paths preserve existing enrichment data, profiles, calendar/session detail and geography when a lightweight or unavailable source response omits them. Snapshot reads are request-scoped and cannot reuse data across publication IDs.
+
+Retention does not override authoritative core corrections: removal of fastest-lap, winner/podium values or standing rows is accepted, along with changed core results. Unavailable optional datasets retain prior successful records, evidence and provenance through the existing publication path; retained coverage/warnings still describe source limitations. No pruning or deletion of old publications is part of this change.
+
+The recorded API `npm run check` passed 133 tests, lint/format, contract checks and Newman 114 requests / 192 assertions, zero failures. Regressions cover removed core values/standing rows, retained calendar/geography/sessions/laps, missing optional enrichment and a lap deadline after results/standings succeed. Companion client checks passed 141 tests, lint and production build. See [full review evidence and pending integration checks](FUNCTIONALITY-VALIDATION.md). Actions secrets/dispatch and native PostgreSQL multi-process locking are not verified; no live imports or storage measurements were repeated on 6 October.
+
+## Earlier held-staging implementation
+
 OpenF1 session sync now uses EnrichmentRepository, never PublicationRepository.publish. Migration 004 creates a dataset manifest and a singleton enrichment workspace. The manifest references unchanged immutable core datasets; only enriched datasets get new normalized rows. Repeated sessions reuse the same held publication. Identical dataset fingerprints skip rewrites, avoiding both retained copies and replay-related dead tuples.
 
 The base remains the rollback source; no active or prior publications are deleted. Workspace rotation is refused when the base/public pointer changes, requiring an explicit retention review rather than accumulating full copies. The two small legacy snapshots already retained by the application are not pruned by this change. Manifest foreign keys prevent deletion of referenced base datasets. Do not resume mutation of a referenced finalized backbone without a separate review.
