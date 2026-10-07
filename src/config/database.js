@@ -3,7 +3,16 @@ import { readFileSync } from 'node:fs';
 export function createPool(config) {
   const url = new URL(config.databaseUrl);
   // pg connection-string SSL parameters must not override certificate verification.
-  for (const key of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) url.searchParams.delete(key);
+  for (const key of [
+    'ssl',
+    'sslmode',
+    'sslcert',
+    'sslkey',
+    'sslrootcert',
+    'uselibpqcompat',
+    'sslnegotiation',
+  ])
+    url.searchParams.delete(key);
   const ssl = { rejectUnauthorized: true };
   if (config.databaseSsl && config.databaseSslCaFile) {
     try {

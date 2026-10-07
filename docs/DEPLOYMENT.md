@@ -6,7 +6,22 @@ The API is a stateless Docker web service intended for Render. PostgreSQL is ext
 
 Local logs confirm API `734a4ed` and companion client `fb7cbd0`; the user confirmed both pushes. Deployment and production/live smoke verification for these commits are **PENDING**. The local review passed API `npm run check` (133 tests, lint/format, contract checks, Newman 114 requests / 192 assertions) and client `npm run check` (141 tests, lint, production build). These fixture/local checks do not establish production behavior. See [review evidence](FUNCTIONALITY-VALIDATION.md).
 
-Actions secrets `F1_CIRCUIT_DATABASE_URL` / `SUPABASE_DATABASE_CA_PEM`, successful workflow dispatch and real PostgreSQL multi-process importer-lock/cooldown verification remain unverified. The instructions below are setup/run procedures, not a record that they have been completed. No live imports or deployment checks were performed for this documentation update.
+The historical checks above do not establish current Actions connectivity. See the 7 October TLS checkpoint below. Real PostgreSQL multi-process importer-lock/cooldown verification remains pending.
+
+## Actions database TLS checkpoint — 7 October 2026
+
+[Workflow run #6](https://github.com/MeGallin/f1-circuit-api/actions/runs/37654033670) failed on commit `c7dd38d`; the supplied log reports `SELF_SIGNED_CERT_IN_CHAIN` at `PublicationRepository.ready`. Secret names were verified by the parent, but their stored values are not inspectable and are not established as correct by this investigation.
+
+The installed `pg` parser reparses the pool connection string when constructing a client. In addition to `sslmode`, `sslcert`, `sslkey` and `sslrootcert`, URL `ssl` can replace the explicit SSL object and lose its configured CA; `sslnegotiation=direct` can implicitly enable SSL with the same effect. `uselibpqcompat` changes SSL mode semantics. The local fix strips all seven options, keeping application TLS policy authoritative and preserving other URL parameters. Certificate and hostname verification remain enabled. See [node-postgres SSL documentation](https://node-postgres.com/features/ssl). The regression checks effective client settings, rather than only the pool's unparsed options.
+
+Read-only local evidence on 7 October:
+
+- The local URL had no query parameter names. The unchanged local configuration passed `SELECT 1` before the fix.
+- HTTPS fetch of the [official Supabase CA](https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt), independently identified by the parent in Database Settings, matched the existing 1367-character local certificate. Both SHA-256 certificate fingerprints were `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`. The credential file was not overwritten.
+- Adding a synthetic `ssl` URL option to that same local connection reproduced `SELF_SIGNED_CERT_IN_CHAIN` under the old handling. With the fix, the same connection passed `SELECT 1` and `PublicationRepository.ready`; the TLS socket reported `authorized: true`, protocol TLS 1.3.
+- Twelve regression cases failed before the fix; all 15 focused TLS tests passed afterward. The fresh full `npm test` run passed 147 tests; focused ESLint, Prettier and `git diff --check` also passed. These checks establish the code defect and local recovery, not the contents of Actions secrets or the definitive cause of run #6. The broader `npm run check`/Newman workflow was not rerun for this configuration-only fix.
+
+This change remains local pending the user's commit/push and a fresh authorized Actions run containing it. If the runner still fails, verify the actual URL option names and the stored PEM against the official certificate without logging URL values, passwords or PEM contents. No workflow dispatch, deployment, provider import, live database write or Supabase/GitHub setting change was performed. The parent observed Supabase SSL enforcement off; no setting change is part of this fix.
 
 ## Database setup
 
@@ -133,7 +148,7 @@ disabled. The cron is intentionally offset to minutes 7, 22, 37, and 52 to
 avoid the top of the hour; this is not a guaranteed 15-minute service-level
 cadence or an operational guarantee. The user confirmed the code push, but
 secrets setup and a successful manual dispatch remain unverified as of
-6 October 2026. No paid Render upgrade is assumed.
+the historical 6 October checkpoint; the 7 October TLS investigation above supersedes its connectivity status. No paid Render upgrade is assumed.
 
 ## Render configuration
 
