@@ -8148,7 +8148,7 @@
       "analyticsDashboardResponse": {
         "type": "object",
         "properties": {
-          "data": { "type": "object", "required": ["analyticsDashboard"], "properties": { "analyticsDashboard": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
+          "data": { "type": "object", "required": ["analyticsDashboard"], "properties": { "analyticsDashboard": { "type": "object", "required": ["championship", "analysisScope"], "properties": { "championship": { "$ref": "#/components/schemas/AnalyticsChampionship" }, "analysisScope": { "$ref": "#/components/schemas/AnalyticsScope" } }, "additionalProperties": true } }, "additionalProperties": false },
           "meta": { "$ref": "#/components/schemas/Meta" }
         },
         "required": ["data", "meta"],
@@ -8161,6 +8161,40 @@
           "meta": { "$ref": "#/components/schemas/Meta" }
         },
         "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "AnalyticsChampionship": {
+        "type": "object",
+        "description": "Season championship context, unaffected by analytical entity/circuit/round/session filters. Both lists belong to the stated season, publication and standings round; unavailable sets never fall back to result sums.",
+        "required": ["season", "round", "snapshotId", "drivers", "constructors", "driverCoverage", "constructorCoverage", "driverEvidenceId", "constructorEvidenceId"],
+        "properties": {
+          "season": { "type": "integer" },
+          "round": { "type": ["integer", "null"] },
+          "snapshotId": { "type": "string" },
+          "drivers": { "type": "array", "items": { "$ref": "#/components/schemas/Standing" } },
+          "constructors": { "type": "array", "items": { "$ref": "#/components/schemas/Standing" } },
+          "driverCoverage": { "$ref": "#/components/schemas/Coverage" },
+          "constructorCoverage": { "$ref": "#/components/schemas/Coverage" },
+          "driverEvidenceId": { "type": ["string", "null"] },
+          "constructorEvidenceId": { "type": ["string", "null"] }
+        },
+        "additionalProperties": false
+      },
+      "AnalyticsScope": {
+        "type": "object",
+        "description": "Selected published result slice. Counts are coverage-limited. Empty analysis is distinct from a genuine zero. Retirement rates use known finished/retired starts and are null when the denominator is zero or session is qualifying. DNS/withdrawn, DSQ, other/unknown outcomes are disclosed separately; position alone never supplies classification.",
+        "required": ["season", "sessionType", "fromRound", "toRound", "matchingEntries", "empty", "coverage", "publishedSessions", "selectedEvents"],
+        "properties": {
+          "season": { "type": "integer" },
+          "sessionType": { "type": "string", "enum": ["race", "sprint", "qualifying"] },
+          "fromRound": { "type": ["integer", "null"] },
+          "toRound": { "type": ["integer", "null"] },
+          "matchingEntries": { "type": "integer", "minimum": 0 },
+          "empty": { "type": "boolean" },
+          "coverage": { "$ref": "#/components/schemas/Coverage" },
+          "publishedSessions": { "type": "integer", "minimum": 0 },
+          "selectedEvents": { "type": "integer", "minimum": 0 }
+        },
         "additionalProperties": false
       },
       "Coverage": {

@@ -1,5 +1,6 @@
 import { invalid, missing } from '../errors/api-error.js';
 import { hash, meta } from '../models/dataset.js';
+import { summarizeOutcomes } from '../models/analytics-outcomes.js';
 
 const splitIds = (value, name) => {
   if (value == null || value === '') return [];
@@ -23,6 +24,10 @@ const integer = (value, name, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) =
 
 const numeric = (value) => (value == null || value === '' ? null : Number(value));
 const percentage = (value, total) => (total ? Math.round((value / total) * 1000) / 10 : null);
+const sumPublishedPoints = (rows) => {
+  const values = rows.map((row) => numeric(row.points)).filter(Number.isFinite);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+};
 const display = (entity) => entity?.displayName || entity?.name || entity?.id || null;
 const driverRows = (rows) =>
   rows.flatMap((row) =>
@@ -33,7 +38,9 @@ const driverRows = (rows) =>
       driverName: display(driver),
     })),
   );
-const completedResult = (row) =>
+// A published rank is useful for position charts; it does not establish a finish,
+// a start or the source's explicit classification boolean.
+const rankedResult = (row) =>
   row?.position != null && !['not-started', 'withdrawn', 'disqualified'].includes(row.status);
 
 const entryDriver = (row) => row?.entry?.drivers?.[0] || null;
@@ -64,7 +71,7 @@ const raceOverview = (item) => {
   const event = eventOverview(item);
   if (!event) return null;
   const results = item.results
-    .filter((row) => completedResult(row))
+    .filter((row) => rankedResult(row))
     .sort((a, b) => a.position - b.position)
     .slice(0, 5)
     .map((row) => {
@@ -85,7 +92,7 @@ const raceOverview = (item) => {
       };
     });
   const podium = results.filter((row) => row.position >= 1 && row.position <= 3);
-  const fastest = item.results.find((row) => completedResult(row) && row.fastestLap?.rank === 1);
+  const fastest = item.results.find((row) => rankedResult(row) && row.fastestLap?.rank === 1);
   const fastestDriver = entryDriver(fastest);
   return {
     ...event,
@@ -264,15 +271,16 @@ export class AnalyticsService {
     if (!seasons.some((item) => item.year === season)) throw missing();
     filters.season = season;
     const eventsSet = await get(`events:${season}`);
-    const events = (eventsSet?.items || [])
+    const allEvents = [...(eventsSet?.items || [])].sort((a, b) => a.round - b.round);
+    const events = allEvents
       .filter((event) => !filters.fromRound || event.round >= filters.fromRound)
       .filter((event) => !filters.toRound || event.round <= filters.toRound)
       .filter(
         (event) => !filters.circuitIds.length || filters.circuitIds.includes(event.circuit?.id),
       )
       .sort((a, b) => a.round - b.round);
-    const eventContexts = await Promise.all(
-      events.map(async (event) => {
+    const allEventContexts = await Promise.all(
+      allEvents.map(async (event) => {
         const detail = await get(`event:${event.id}`);
         const sessionsSet = detail || (await get(`sessions:${event.id}`));
         const sessions = detail?.items?.[0]?.sessions || sessionsSet?.items || [];
@@ -288,31 +296,44 @@ export class AnalyticsService {
         const qualifyingSet = qualifyingSession
           ? await get(`qualifying:${qualifyingSession.id}`)
           : null;
+        const raceSession = sessions.find((session) => session.kind === 'race');
+        const raceSet = raceSession
+          ? selected?.id === raceSession.id
+            ? resultSet
+            : await get(`results:${raceSession.id}`)
+          : null;
+        const publishedRows = (session, set) =>
+          session?.status === 'scheduled' || set?.coverage === 'unavailable'
+            ? []
+            : set?.items || [];
         return {
           event,
           sessions,
           session: selected,
-          results: resultSet?.items || [],
-          qualifying: qualifyingSet?.items || [],
+          results: publishedRows(selected, resultSet),
+          raceSession,
+          raceResults: publishedRows(raceSession, raceSet),
+          raceEvidence: raceSet,
+          qualifying: publishedRows(qualifyingSession, qualifyingSet),
           evidence: resultSet || qualifyingSet || detail || eventsSet,
         };
       }),
     );
+    const eventIds = new Set(events.map((event) => event.id));
+    const eventContexts = allEventContexts.filter((item) => eventIds.has(item.event.id));
     const profiles = await Promise.all((await keys('profile:')).map(get));
     const profileItems = profiles.flatMap((set) => set?.items || []);
     const driverProfiles = profileItems.filter((profile) => profile.kind === 'driver');
-    const constructorProfiles = profileItems.filter((profile) => profile.kind === 'constructor');
-    const circuitProfiles = profileItems.filter((profile) => profile.kind === 'circuit');
     return {
       snapshot,
       filters,
       seasonsSet,
       eventsSet,
       events,
+      allEvents,
+      allEventContexts,
       eventContexts,
       driverProfiles,
-      constructorProfiles,
-      circuitProfiles,
     };
   }
 
@@ -328,8 +349,8 @@ export class AnalyticsService {
   }
 
   driverOptions(context) {
-    const fromRows = context.eventContexts.flatMap((item) => driverRows(item.results));
-    const byId = new Map(context.driverProfiles.map((profile) => [profile.id, profile.entity]));
+    const fromRows = context.allEventContexts.flatMap((item) => driverRows(item.results));
+    const byId = new Map();
     for (const row of fromRows) byId.set(row.driverId, row.driver);
     return [...byId.values()]
       .filter(Boolean)
@@ -340,28 +361,68 @@ export class AnalyticsService {
   async dashboard(query) {
     const context = await this.loadContext(query);
     const { filters, eventContexts } = context;
+    const seasonContexts = context.allEventContexts.map((item) => ({
+      ...item,
+      session: item.raceSession,
+      results: item.raceResults,
+      evidence: item.raceEvidence,
+    }));
+    const standingGet = (key) => this.repository.get(key, context.snapshot.id);
+    const latestStandings = await standingGet(`standings:${filters.season}:drivers`);
+    const standingIds = [
+      ...new Set(
+        (latestStandings?.coverage === 'unavailable' ? [] : latestStandings?.items || []).map(
+          (row) => row.standingSnapshotId,
+        ),
+      ),
+    ];
+    const standingMatch =
+      standingIds.length === 1 ? String(standingIds[0]).match(/^standing:(\d+):(\d+)$/) : null;
+    const standingRound =
+      standingMatch && Number(standingMatch[1]) === filters.season
+        ? Number(standingMatch[2])
+        : null;
+    const [driverStandings, constructorStandings] = standingRound
+      ? await Promise.all([
+          standingGet(`standings:${filters.season}:drivers:${standingRound}`),
+          standingGet(`standings:${filters.season}:constructors:${standingRound}`),
+        ])
+      : [null, null];
+    const standingRows = (set) =>
+      (set?.coverage === 'unavailable' ? [] : set?.items || [])
+        .filter((row) => row.standingSnapshotId === `standing:${filters.season}:${standingRound}`)
+        .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    const standingCoverage = (set) => {
+      const rows = standingRows(set);
+      if (!rows.length) return 'unavailable';
+      return rows.length === set.items.length ? coverage(set) : 'partial';
+    };
+    const championship = {
+      season: filters.season,
+      round: standingRound,
+      snapshotId: context.snapshot.id,
+      drivers: standingRows(driverStandings).map((row) => ({
+        ...row,
+        number: row.number == null ? null : String(row.number),
+      })),
+      constructors: standingRows(constructorStandings),
+      driverCoverage: standingCoverage(driverStandings),
+      constructorCoverage: standingCoverage(constructorStandings),
+      driverEvidenceId: driverStandings?.evidenceId || null,
+      constructorEvidenceId: constructorStandings?.evidenceId || null,
+    };
     const raceContexts = eventContexts.map((item) => ({
       ...item,
       rows: this.filterRows(item.results, filters),
     }));
     const driverMap = new Map();
-    const constructorMap = new Map();
     for (const item of raceContexts) {
       for (const row of driverRows(item.rows)) driverMap.set(row.driverId, row.driver);
-      for (const row of item.rows) {
-        if (row.entry?.constructor)
-          constructorMap.set(row.entry.constructor.id, row.entry.constructor);
-      }
     }
-    for (const driver of context.driverProfiles) driverMap.set(driver.id, driver.entity);
-    for (const constructor of context.constructorProfiles)
-      constructorMap.set(constructor.id, constructor.entity);
     const selectedDriverIds = filters.driverIds.length
       ? filters.driverIds.filter((id) => driverMap.has(id))
       : [...driverMap.keys()];
-    const progressionEvents = raceContexts.filter(
-      (item) => item.results.length || item.event.status === 'completed',
-    );
+    const progressionEvents = raceContexts.filter((item) => item.rows.length);
     const progression = selectedDriverIds.map((driverId) => {
       let total = 0;
       const entity = driverMap.get(driverId);
@@ -374,8 +435,9 @@ export class AnalyticsService {
             ?.metrics?.find((metric) => metric.key === 'number')?.value || null,
         points: progressionEvents.map((item) => {
           const row = driverRows(item.rows).find((entry) => entry.driverId === driverId);
-          if (row?.points != null) total += numeric(row.points) || 0;
-          return row ? total : null;
+          if (row?.points == null) return null;
+          total += numeric(row.points) || 0;
+          return total;
         }),
       };
     });
@@ -401,25 +463,27 @@ export class AnalyticsService {
         });
     });
     const constructorTotals = new Map();
-    const driverConstructorMap = new Map();
     for (const item of raceContexts) {
       for (const row of item.rows) {
         const constructor = row.entry?.constructor;
-        for (const driver of row.entry?.drivers || [])
-          driverConstructorMap.set(driver.id, constructor || null);
         if (!constructor) continue;
         const record = constructorTotals.get(constructor.id) || {
           constructorId: constructor.id,
           constructorName: display(constructor),
-          totalPoints: 0,
+          totalPoints: null,
           drivers: new Map(),
         };
-        record.totalPoints += numeric(row.points) || 0;
+        const publishedPoints = numeric(row.points);
+        if (publishedPoints != null)
+          record.totalPoints = (record.totalPoints ?? 0) + publishedPoints;
         for (const driver of row.entry.drivers || [])
           record.drivers.set(driver.id, {
             driverId: driver.id,
             driverName: display(driver),
-            points: (record.drivers.get(driver.id)?.points || 0) + (numeric(row.points) || 0),
+            points:
+              publishedPoints == null
+                ? (record.drivers.get(driver.id)?.points ?? null)
+                : (record.drivers.get(driver.id)?.points ?? 0) + publishedPoints,
           });
         constructorTotals.set(constructor.id, record);
       }
@@ -435,7 +499,7 @@ export class AnalyticsService {
     for (const item of raceContexts) {
       const circuit = item.event.circuit;
       if (!circuit) continue;
-      const rows = driverRows(item.rows).filter(completedResult);
+      const rows = driverRows(item.rows).filter(rankedResult);
       if (!rows.length) continue;
       circuitMap.set(circuit.id, circuit);
       for (const row of rows) {
@@ -443,49 +507,49 @@ export class AnalyticsService {
           circuitId: circuit.id,
           driverId: row.driverId,
           value: row.position,
-          starts: completedResult(row) ? 1 : 0,
+          starts: summarizeOutcomes([row]).starts,
           averageFinish: row.position ?? null,
         });
       }
     }
-    const latest = [...raceContexts]
+    const latest = [...seasonContexts]
       .reverse()
       .find((item) => item.event.status === 'completed' || item.results.length);
-    const next = raceContexts.find(
+    const next = seasonContexts.find(
       (item) => item.event.status === 'scheduled' && !item.results.length,
     );
-    const totalPoints = raceContexts.reduce(
-      (total, item) =>
-        total + item.rows.reduce((subtotal, row) => subtotal + (numeric(row.points) || 0), 0),
-      0,
-    );
+    const totalPoints = sumPublishedPoints(raceContexts.flatMap((item) => item.rows));
     const defaultComparison = await this.driverComparisonFromContext(context, filters.driverIds);
-    const championshipDrivers = [...defaultComparison.drivers].sort(
-      (a, b) => b.metrics.points - a.metrics.points,
+    const championshipLeader = championship.drivers.find((row) => row.rank === 1) || null;
+    const seasonComparison = await this.driverComparisonFromContext(
+      {
+        ...context,
+        eventContexts: seasonContexts,
+        filters: {
+          ...filters,
+          driverIds: [],
+          constructorIds: [],
+          circuitIds: [],
+          sessionType: 'race',
+        },
+      },
+      [],
     );
-    const championshipLeader = championshipDrivers.at(0);
-    const championshipLeaderNumber = championshipLeader
-      ? raceContexts
-          .flatMap((item) => driverRows(item.rows))
-          .find((row) => row.driverId === championshipLeader.id)?.entry?.number || null
-      : null;
-    const constructorLeader = constructorContribution[0] || null;
-    const completedEvents = raceContexts.filter(
+    const leaderMetrics = seasonComparison.drivers.find(
+      (row) => row.id === championshipLeader?.entity?.id,
+    )?.metrics;
+    const constructorLeader = championship.constructors.find((row) => row.rank === 1) || null;
+    const completedEvents = seasonContexts.filter(
       (item) => item.event.status === 'completed' || item.results.length,
     ).length;
     const resultRows = raceContexts.flatMap((item) => item.rows);
-    const startedRows = resultRows.filter(
-      (row) => !['not-started', 'withdrawn', 'disqualified'].includes(row.status),
-    );
-    const classifiedRows = startedRows.filter(completedResult);
+    const outcomeCounts = summarizeOutcomes(resultRows);
+    const rankedRows = resultRows.filter(rankedResult);
     const raceBreakdown = {
-      entries: resultRows.length,
-      starts: startedRows.length,
-      classified: classifiedRows.length,
-      dnfs: Math.max(0, startedRows.length - classifiedRows.length),
-      wins: classifiedRows.filter((row) => row.position === 1).length,
-      podiums: classifiedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
-      fastestLaps: classifiedRows.filter((row) => row.fastestLap?.rank === 1).length,
+      ...outcomeCounts,
+      wins: rankedRows.filter((row) => row.position === 1).length,
+      podiums: rankedRows.filter((row) => row.position >= 1 && row.position <= 3).length,
+      fastestLaps: rankedRows.filter((row) => row.fastestLap?.rank === 1).length,
     };
     const latestSessionData = await latestSessionHighlights(
       (key) => this.repository.get(key, context.snapshot.id),
@@ -495,12 +559,12 @@ export class AnalyticsService {
     const podiumDriverIds = new Set();
     for (const item of raceContexts) {
       for (const row of driverRows(item.rows)) {
-        if (!completedResult(row)) continue;
+        if (!rankedResult(row)) continue;
         if (row.position === 1) raceWinnerIds.add(row.driverId);
         if (row.position >= 1 && row.position <= 3) podiumDriverIds.add(row.driverId);
       }
     }
-    const weekendTimeline = raceContexts.map((item) => {
+    const weekendTimeline = seasonContexts.map((item) => {
       const overview = raceOverview(item);
       const winner = overview?.podium?.find((row) => row.position === 1) || null;
       return {
@@ -523,16 +587,47 @@ export class AnalyticsService {
     });
     const dashboard = {
       filters,
+      championship,
+      analysisScope: {
+        season: filters.season,
+        sessionType: filters.sessionType,
+        fromRound: filters.fromRound,
+        toRound: filters.toRound,
+        matchingEntries: resultRows.length,
+        empty: resultRows.length === 0,
+        coverage:
+          raceContexts.length &&
+          raceContexts.every((item) => item.evidence?.coverage === 'complete')
+            ? 'complete'
+            : resultRows.length
+              ? 'partial'
+              : 'unavailable',
+        publishedSessions: raceContexts.filter((item) => item.rows.length).length,
+        selectedEvents: context.events.length,
+      },
       filterOptions: {
         seasons: context.seasonsSet.items
           .map((season) => ({ year: season.year, name: String(season.year) }))
           .sort((a, b) => b.year - a.year),
         drivers: this.driverOptions(context),
-        constructors: [...context.constructorProfiles]
-          .map((profile) => ({ id: profile.id, name: display(profile.entity) }))
+        constructors: [
+          ...new Map(
+            context.allEventContexts
+              .flatMap((item) => item.results)
+              .filter((row) => row.entry?.constructor)
+              .map((row) => [row.entry.constructor.id, row.entry.constructor]),
+          ).values(),
+        ]
+          .map((entity) => ({ id: entity.id, name: display(entity) }))
           .sort((a, b) => a.name.localeCompare(b.name)),
-        circuits: [...context.circuitProfiles]
-          .map((profile) => ({ id: profile.id, name: display(profile.entity) }))
+        circuits: [
+          ...new Map(
+            context.allEventContexts
+              .filter((item) => item.results.length && item.event.circuit)
+              .map((item) => [item.event.circuit.id, item.event.circuit]),
+          ).values(),
+        ]
+          .map((entity) => ({ id: entity.id, name: display(entity) }))
           .sort((a, b) => a.name.localeCompare(b.name)),
         sessionTypes: ['race', 'qualifying', 'sprint'],
       },
@@ -541,18 +636,22 @@ export class AnalyticsService {
         completedEvents: raceContexts.filter(
           (item) => item.event.status === 'completed' || item.results.length,
         ).length,
-        totalPoints,
+        totalPoints: resultRows.length ? totalPoints : null,
         driverCount: new Set(
           raceContexts.flatMap((item) => driverRows(item.rows).map((row) => row.driverId)),
         ).size,
         constructorCount: constructorTotals.size,
         circuitCount: circuitMap.size,
-        raceWinnerCount: raceWinnerIds.size,
-        podiumDriverCount: podiumDriverIds.size,
-        publishedStarts: raceBreakdown.starts,
-        fastestLapCount: raceBreakdown.fastestLaps,
+        raceWinnerCount: resultRows.length ? raceWinnerIds.size : null,
+        podiumDriverCount: resultRows.length ? podiumDriverIds.size : null,
+        publishedStarts: resultRows.length ? raceBreakdown.starts : null,
+        fastestLapCount: resultRows.length ? raceBreakdown.fastestLaps : null,
         podiumRate: percentage(raceBreakdown.podiums, raceBreakdown.starts),
-        dnfRate: percentage(raceBreakdown.dnfs, raceBreakdown.starts),
+        retirementRate:
+          filters.sessionType === 'qualifying'
+            ? null
+            : percentage(raceBreakdown.retirements, raceBreakdown.retirementEligibleStarts),
+        dnfRate: null,
       },
       latestHighlights: {
         latestCompleted: latest?.event || null,
@@ -562,35 +661,39 @@ export class AnalyticsService {
       weekendTimeline,
       seasonIntelligence: {
         progress: {
-          totalEvents: context.events.length,
+          totalEvents: context.allEvents.length,
           completedEvents,
-          percentage: context.events.length
-            ? Math.round((completedEvents / context.events.length) * 100)
+          percentage: context.allEvents.length
+            ? Math.round((completedEvents / context.allEvents.length) * 100)
             : 0,
         },
         championshipLeader: championshipLeader
           ? {
-              driverId: championshipLeader.id,
-              driverName: championshipLeader.name,
-              position:
-                championshipDrivers.findIndex((driver) => driver.id === championshipLeader.id) + 1,
-              number: championshipLeaderNumber,
-              points: championshipLeader.metrics.points,
-              wins: championshipLeader.metrics.wins,
-              podiums: championshipLeader.metrics.podiums,
-              averageFinish: championshipLeader.metrics.averageFinish,
-              dnfRate: championshipLeader.metrics.dnfRate,
-              fastestLaps: championshipLeader.metrics.fastestLaps,
-              positionsGained: championshipLeader.metrics.positionsGained,
-              recentForm: championshipLeader.metrics.recentForm,
-              constructor: driverConstructorMap.get(championshipLeader.id) || null,
+              driverId: championshipLeader.entity.id,
+              driverName: display(championshipLeader.entity),
+              position: championshipLeader.rank,
+              number:
+                championshipLeader.number ||
+                seasonContexts
+                  .flatMap((item) => driverRows(item.results))
+                  .find((row) => row.driverId === championshipLeader.entity.id)?.entry?.number ||
+                null,
+              points: numeric(championshipLeader.points),
+              wins: championshipLeader.wins,
+              podiums: leaderMetrics?.podiums ?? null,
+              averageFinish: leaderMetrics?.averageFinish ?? null,
+              retirementRate: leaderMetrics?.retirementRate ?? null,
+              fastestLaps: leaderMetrics?.fastestLaps ?? null,
+              positionsGained: leaderMetrics?.positionsGained ?? null,
+              recentForm: leaderMetrics?.recentForm || [],
+              constructor: championshipLeader.constructors?.[0] || null,
             }
           : null,
         constructorLeader: constructorLeader
           ? {
-              constructorId: constructorLeader.constructorId,
-              constructorName: constructorLeader.constructorName,
-              points: constructorLeader.totalPoints,
+              constructorId: constructorLeader.entity.id,
+              constructorName: display(constructorLeader.entity),
+              points: numeric(constructorLeader.points),
             }
           : null,
         latestRace: raceOverview(latest),
@@ -621,12 +724,12 @@ export class AnalyticsService {
           ? `${latest.event.name} is the latest published event in this selection.`
           : 'No completed events are published for this selection.',
         championshipLeader
-          ? `${championshipLeader.name} leads the selected driver standings with ${championshipLeader.metrics.points} published points.`
+          ? `${display(championshipLeader.entity)} leads the published season championship after round ${standingRound} with ${championshipLeader.points} points.`
           : 'Driver standings are unavailable for this selection.',
-        constructorContribution[0]
-          ? `${constructorContribution[0].constructorName} leads the selected race points contribution.`
+        constructorContribution[0]?.totalPoints != null
+          ? `${constructorContribution[0].constructorName} has ${constructorContribution[0].totalPoints} published points in the selected ${filters.sessionType} results.`
           : 'Constructor contribution is unavailable for this selection.',
-        `${completedEvents} of ${context.events.length} events have published results in this selection.`,
+        `${completedEvents} of ${context.allEvents.length} season events have published race results.`,
       ],
     };
     return {
@@ -667,9 +770,11 @@ export class AnalyticsService {
       filters: context.filters,
       drivers: ids.map((id) => {
         const driverRowsForId = rows.filter((row) => row.driverId === id);
-        const finishes = driverRowsForId.filter((row) => row.position != null);
-        const starts = driverRowsForId.filter((row) => completedResult(row));
-        const points = finishes.reduce((total, row) => total + (numeric(row.points) || 0), 0);
+        const finishes = driverRowsForId.filter(rankedResult);
+        const outcomes = summarizeOutcomes(driverRowsForId);
+        const starts = driverRowsForId.filter((row) => summarizeOutcomes([row]).starts === 1);
+        const points = sumPublishedPoints(driverRowsForId);
+        const isQualifying = context.filters.sessionType === 'qualifying';
         const wins = finishes.filter((row) => row.position === 1).length;
         const podiums = finishes.filter((row) => row.position >= 1 && row.position <= 3).length;
         const average = (values) =>
@@ -678,7 +783,11 @@ export class AnalyticsService {
           id,
           name: display(available.get(id)),
           metrics: {
-            races: starts.length,
+            races: isQualifying ? driverRowsForId.length : starts.length,
+            qualifyingEntries: isQualifying ? driverRowsForId.length : null,
+            startDefinition: isQualifying
+              ? 'published qualifying entries'
+              : 'known outcome or positive published laps',
             wins,
             podiums,
             points,
@@ -690,11 +799,13 @@ export class AnalyticsService {
                 ((row.grid?.position || row.position) - (row.position || row.grid?.position || 0)),
               0,
             ),
-            dnfRate: driverRowsForId.length
-              ? (driverRowsForId.length - starts.length) / driverRowsForId.length
-              : 0,
+            outcomes,
+            retirementRate:
+              context.filters.sessionType === 'qualifying' ? null : outcomes.retirementRate,
+            dnfRate: null,
             fastestLaps: finishes.filter((row) => row.fastestLap?.rank === 1).length,
-            pointsPerRace: starts.length ? points / starts.length : 0,
+            pointsPerRace:
+              !isQualifying && points != null && starts.length ? points / starts.length : null,
             recentForm: finishes.slice(-5).map((row) => row.position),
           },
         };

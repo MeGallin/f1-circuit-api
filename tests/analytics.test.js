@@ -57,7 +57,8 @@ test('analytics dashboard exposes published season intelligence for the overview
   assert.equal(dashboard.weekendTimeline[0].completed, true);
   assert.equal(dashboard.weekendTimeline[0].winner.driverName, 'Example One');
   assert.equal(response.body.data.analyticsDashboard.quickStats.podiumRate, 100);
-  assert.equal(response.body.data.analyticsDashboard.quickStats.dnfRate, 0);
+  assert.equal(response.body.data.analyticsDashboard.quickStats.retirementRate, 0);
+  assert.equal(response.body.data.analyticsDashboard.quickStats.dnfRate, null);
   assert.equal(response.body.data.analyticsDashboard.insights.length, 4);
 });
 

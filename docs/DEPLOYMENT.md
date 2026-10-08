@@ -2,7 +2,11 @@
 
 The API is a stateless Docker web service intended for Render. PostgreSQL is external, hosted by Supabase. The browser is a separate static application at `https://f1.livenotice.co.uk`.
 
-## Release verification — 6 October 2026
+## Current release verification — 7 October 2026
+
+The user confirmed the TLS fix was pushed as `7bb44feba032f9ce254d88911faa2ba59666a82e`. Parent browser evidence confirms [Render deployment](https://dashboard.render.com/web/srv-damhhhbm8hqs73d62b8g/deploys/dep-db37fpnlk1mc739ml4a0) reached **Live** on 7 October at 17:48 BST on that commit, with readiness HTTP 200. [Actions run #8](https://github.com/MeGallin/f1-circuit-api/actions/runs/37655393608) succeeded on the same commit after replacement of the existing CA secret, logging `One-shot current-season check finished: scheduled.` Secure database connectivity and the scheduler decision are verified. Post-race provider fetch/publication, future scheduled-trigger cadence, production-origin CORS and real PostgreSQL multi-process lock/cooldown behavior remain unverified. This supersedes the deployment and Actions configuration/dispatch pending statuses below, without claiming full production validation.
+
+## Historical release verification — 6 October 2026
 
 Local logs confirm API `734a4ed` and companion client `fb7cbd0`; the user confirmed both pushes. Deployment and production/live smoke verification for these commits are **PENDING**. The local review passed API `npm run check` (133 tests, lint/format, contract checks, Newman 114 requests / 192 assertions) and client `npm run check` (141 tests, lint, production build). These fixture/local checks do not establish production behavior. See [review evidence](FUNCTIONALITY-VALIDATION.md).
 
@@ -21,7 +25,14 @@ Read-only local evidence on 7 October:
 - Adding a synthetic `ssl` URL option to that same local connection reproduced `SELF_SIGNED_CERT_IN_CHAIN` under the old handling. With the fix, the same connection passed `SELECT 1` and `PublicationRepository.ready`; the TLS socket reported `authorized: true`, protocol TLS 1.3.
 - Twelve regression cases failed before the fix; all 15 focused TLS tests passed afterward. The fresh full `npm test` run passed 147 tests; focused ESLint, Prettier and `git diff --check` also passed. These checks establish the code defect and local recovery, not the contents of Actions secrets or the definitive cause of run #6. The broader `npm run check`/Newman workflow was not rerun for this configuration-only fix.
 
-This change remains local pending the user's commit/push and a fresh authorized Actions run containing it. If the runner still fails, verify the actual URL option names and the stored PEM against the official certificate without logging URL values, passwords or PEM contents. No workflow dispatch, deployment, provider import, live database write or Supabase/GitHub setting change was performed. The parent observed Supabase SSL enforcement off; no setting change is part of this fix.
+The evidence above was collected during the earlier coding investigation; its 147-test result was not rerun for this documentation followup. That investigation made no workflow dispatch, deployment, provider import, live database write or Supabase/GitHub setting change. The parent observed Supabase SSL enforcement off and left it unchanged; the application still verifies TLS.
+
+Subsequent parent browser evidence, 7 October:
+
+- Run #5 failed for missing configuration. The user initially added a repository secret named `DATABASE_URL`, then supplied the workflow's required names `F1_CIRCUIT_DATABASE_URL` and `SUPABASE_DATABASE_CA_PEM`.
+- Run #6 failed on `c7dd38d` as recorded above. After the user pushed the code fix and Render deployed `7bb44fe`, [run #7](https://github.com/MeGallin/f1-circuit-api/actions/runs/37655123659) still failed with `SELF_SIGNED_CERT_IN_CHAIN`.
+- Under user authorization, the parent updated the **existing** `SUPABASE_DATABASE_CA_PEM` repository secret with the full locally verified official CA text; GitHub confirmed the update at 17:51 BST. The database URL secret was not changed. The prior stored PEM was unreadable, so its original defect cannot be identified as a path, truncation or any other specific mistake.
+- [Run #8](https://github.com/MeGallin/f1-circuit-api/actions/runs/37655393608) then succeeded on the **same** `7bb44fe` commit in 21 seconds (job: 15 seconds), logging `One-shot current-season check finished: scheduled.` This supports CA secret replacement as the intervention that resolved the remaining runner trust failure. It verifies secure database connection and a scheduler decision; it exercised no provider import or end-to-end post-race publication and does not prove future cron cadence.
 
 ## Database setup
 
@@ -132,6 +143,16 @@ the credentials, database connection, and scheduler's database-only path. To
 exercise a provider import, dispatch only while a race's configured window is
 active and its publication is incomplete.
 
+The repository secret must be named exactly `F1_CIRCUIT_DATABASE_URL`; the workflow maps it to the process environment variable `DATABASE_URL`. A repository secret named only `DATABASE_URL` is not read by this workflow. `SUPABASE_DATABASE_CA_PEM` holds the full certificate text, including PEM boundaries and line breaks, not a filesystem path. This certificate is a publicly distributed CA certificate, not a private key. Local and Render `DATABASE_SSL_CA_FILE` instead name a readable file on their respective hosts. The runner creates its own temporary PEM, sets `DATABASE_SSL_CA_FILE` to that runner path and uses an exit trap to remove it. Never put a local Windows path into the PEM secret.
+
+Actions connects directly to Supabase and runs the scheduler in its own process; it does not call Render. A successful Render deployment neither updates GitHub repository secrets nor establishes Actions connectivity.
+
+### Troubleshooting the runner
+
+- Missing configuration: check the two exact repository secret names and workflow mapping. The startup guard fails before a database connection when either required value is empty.
+- TLS trust failure: compare the CA against the official certificate and ensure the secret contains its complete text. Inspect only sanitized URL parameter names and certificate metadata; never print credentials or PEM contents. The code strips URL SSL overrides while retaining certificate and hostname verification. Do not bypass TLS verification.
+- Provider/publication failure: only investigate this stage after secure database connectivity succeeds and an eligible race window actually causes a provider check. A successful `scheduled` decision does not test provider availability, imports, publication or concurrency.
+
 Automatic provider reads have a four-minute total budget, including calendar,
 pagination, retries and rate-limit waits. Results and championship standings
 are fetched before optional qualifying, sprint, pit-stop and lap pages. Prior
@@ -146,9 +167,9 @@ GitHub scheduled jobs are best-effort: they can be delayed or dropped, and a
 public repository with no activity for 60 days can have scheduled workflows
 disabled. The cron is intentionally offset to minutes 7, 22, 37, and 52 to
 avoid the top of the hour; this is not a guaranteed 15-minute service-level
-cadence or an operational guarantee. The user confirmed the code push, but
-secrets setup and a successful manual dispatch remain unverified as of
-the historical 6 October checkpoint; the 7 October TLS investigation above supersedes its connectivity status. No paid Render upgrade is assumed.
+cadence or an operational guarantee. Secret configuration and manual dispatch
+succeeded on 7 October as recorded above; future scheduled-trigger cadence
+has not yet been observed. No paid Render upgrade is assumed.
 
 ## Render configuration
 
@@ -160,4 +181,4 @@ the historical 6 October checkpoint; the 7 October TLS investigation above super
 
 The image uses an unprivileged node user and production dependencies only. No persistent volume is required. Logs omit queries, request bodies and credentials. The optional question interpreter and fallback rephraser run server-side only when enabled; they do not receive database tools and do not provide final archive answers. No visitor analytics or tracking cookies are added. Shutdown stops HTTP intake and closes database connections with a bounded timeout.
 
-No Render or Supabase resources were provisioned. A running Docker engine and actual managed-database integration checks are still needed before deployment.
+No Render or Supabase resources were provisioned by this documentation task. The 7 October parent evidence confirms the deployed API and runner connectivity; broader integration and production smoke checks remain bounded by the pending items above.

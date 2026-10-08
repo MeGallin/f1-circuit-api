@@ -2,12 +2,6 @@
 
 Environment: loopback-only Express server with a deterministic fictional repository double. No external provider requests, database credentials or production mutations.
 
-## Review checkpoint — 6 October 2026
-
-API commit `734a4ed` is confirmed in local Git logs; companion client `fb7cbd0` is also locally confirmed. Both pushes are user-confirmed. The API `npm run check` run passed 133 tests, lint/format, contract checks and the Newman collection below: **114 requests, 192 assertions, zero failures**. Companion client checks passed 141 tests, lint and production build. The refresh fixture validates the route boundary; importer/concurrency/failure regressions belong to the API test suite, not a live Newman import.
-
-Deployment and production/live smoke verification remain **PENDING**. Actions secrets/dispatch and real PostgreSQL multi-process locking are unverified. These results are recorded review evidence, not a new test run for this prose update. See [functionality validation](FUNCTIONALITY-VALIDATION.md).
-
 | Request          | Status                       |
 | ---------------- | ---------------------------- |
 | Success          | listSeasons                  | 200 |
