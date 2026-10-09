@@ -1959,6 +1959,63 @@
       ]
     },
     {
+      "name": "Success | getHomeChampionshipGraphics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/championship-graphics?standingSnapshotId=standing%3A2024%3A1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Contract envelope', function () { const b=pm.response.json(); pm.expect(b).to.have.property('data'); pm.expect(b.meta.snapshotId).to.eql('synthetic-publication'); pm.expect(b.meta.verification).not.to.eql('verified'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation | getHomeChampionshipGraphics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/2024/championship-graphics?standingSnapshotId=standing%3A2024%3A1&unknownParameter=invalid"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Safe validation code', function () { pm.expect(pm.response.json().error.code).to.eql('INVALID_REQUEST'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Missing resource | getHomeChampionshipGraphics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/seasons/1949/championship-graphics?standingSnapshotId=standing%3A2024%3A1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('HTTP 400', function () { pm.response.to.have.status(400); });"]
+          }
+        }
+      ]
+    },
+    {
       "name": "Health | live",
       "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health/live" },
       "event": [

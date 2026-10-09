@@ -2,16 +2,30 @@
 
 Backend repository for the F1 Circuit historical and post-race application.
 
-## Current uncommitted senior review — 8 October 2026
+## Latest uncommitted review — 9 October 2026
+
+[Current findings and exact verification](../client/docs/SENIOR-REVIEW-2026-10-09.md):
+210 API tests, lint/format, OpenAPI/checksum and fixture-only Newman117/197 passed.
+Home aggregate coverage and malformed evidence are now guarded. No deployment,
+provider import or live write; earlier checkpoints below remain dated.
+
+## Completed senior review checkpoint — 8 October 2026
 
 Fresh full check passed163 tests, lint/format, pinned OpenAPI checksum and Newman
 114 requests/192 assertions, zero failures. Comparison rank eligibility and coverage
 guards are aligned without erasing classified retirements or real zero values.
 See [current review](../client/docs/SENIOR-REVIEW-2026-10-08.md) and
 [metric definitions](docs/ANALYTICS-METRICS.md). Earlier audit totals below are
-historical. All changes remain local/uncommitted; no deployment or live mutation.
+historical. Final local HEAD observed:10fa996; implementation is locally committed,
+while this Markdown alignment remains dirty. No fresh remote/push or deployment
+verification ran; this review agent made no commit or live mutation.
 
-## Current local audit verification — 8 October 2026
+Companion client recorded460 tests/44 files plus12 focused/2files after whitespace
+generator cleanup; twelve browser gates and Home followups accepted. The62-file/
+265,860-byte external archive is SHA-256 verified. This prose-only alignment reruns
+no tests or builds and makes no new commit/push/deployment verification claim.
+
+## Historical local audit verification — 8 October 2026 (before senior review)
 
 UX-01/02/08 use publication/round-owned championship standings, explicit
 retirement/unknown outcomes, eligible season/session filters and null versus real

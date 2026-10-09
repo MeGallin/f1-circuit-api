@@ -1,5 +1,6 @@
 import { ApiError, invalid, missing } from '../errors/api-error.js';
 import { meta, hash } from '../models/dataset.js';
+import { HomeChampionshipGraphicsService } from './home-championship-graphics.service.js';
 const keyMap = {
   getClassification: 'results',
   getQualifying: 'qualifying',
@@ -89,6 +90,11 @@ export class ReadService {
       const seasons = await get('seasons');
       if (!seasons?.items.some((s) => s.year === (p.year || q.year))) throw missing();
     }
+    if (op === 'getHomeChampionshipGraphics')
+      return new HomeChampionshipGraphicsService(repo).read(
+        { year: p.year, standingSnapshotId: q.standingSnapshotId },
+        snapshot,
+      );
     if (p.sessionId) {
       if (!(await repo.resolve(p.sessionId, snapshot.id))) throw missing();
     }

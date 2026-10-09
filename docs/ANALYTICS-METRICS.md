@@ -2,7 +2,46 @@
 
 Implements audit UX-01, UX-02 and UX-08. Source records are read at one publication snapshot; no source imports or database rewrites are needed.
 
-## Current senior-review boundary — 8 October 2026
+## Latest Home-only read projection — 9 October 2026
+
+Latest [cross-repository senior review](../../client/docs/SENIOR-REVIEW-2026-10-09.md)
+owns the current gate:210 API tests plus Newman117/197, lint/format/contracts passed.
+Aggregate completeness includes supplementary driver race cells; missing race
+evidence makes aggregate partial without changing valid standings coverage.
+Malformed calendar scope is unavailable; malformed classification/driver rosters
+cannot throw500 or invent race zero. Earlier203/40 results below predate this fix.
+
+`getHomeChampionshipGraphics` derives the displayed pinned top three server-side.
+Each historical gap uses that round's unique rank-one leader across ALL standings
+of the corresponding kind, not only today's top three or the final leader.
+Constructor points now come from historical constructor standings, replacing the
+Home-only race-contribution payload. Published championship scoring includes any
+published sprint totals; it is never reconstructed by race accumulation. Decimal
+strings retain fractional and negative source points; negative gaps are unavailable.
+Partial known zero stays partial, missing observations stay null. Duplicate entities,
+foreign standing snapshots, malformed collections/rows and ambiguous leaders
+(including a second rank-one row with missing points) cannot establish a gap.
+Supplementary driver race points retain classification/session ownership checks.
+Three bounded publication-pinned repository batches reuse stored collections,
+adding constructor history to phase two without source calls/migration/writes.
+See [endpoint guide](ANALYTICS.md) and
+[Home projection verification](../../client/docs/HOME-CHAMPIONSHIP-GRAPHICS.md).
+Existing dashboard/comparison definitions below are unchanged.
+
+Current9 October gate:40 focused projection cases passed; final `npm run check`
+passed203 tests, lint/format, OpenAPI/checksum and Newman117 requests/197 assertions.
+Initial11 constructor failures, separate null-row500 failure and later two
+ambiguous-leader failures preceded their fixes. Client focused104/10, lint/build,
+parent measured browser proof and current limits are in the linked contract.
+Contract regeneration is byte-idempotent; earlier197-test intermediate and180-test
+historical totals are separate. No commit/push/deploy/import/live write.
+
+Historical 8 October projection gate:180 API tests, lint/format, OpenAPI/checksum and Newman117
+requests/197 assertions passed. The scoped client record owns627/60 full checks,
+parent browser samples and honest historical/contrast limits; no deployment,
+source import or live database write was performed.
+
+## Earlier senior-review boundary — 8 October 2026
 
 Comparison wins/podiums/fastest laps now use the dashboard's shared rank eligibility:
 retained DNS/withdrawn/DSQ ranks cannot count as sporting achievements. Classified
@@ -15,7 +54,9 @@ when mismatched rows are dropped and unavailable when none survive.
 Fresh full API check passed163 tests, lint/format, pinned OpenAPI structure/checksum
 and Newman114 requests/192 assertions with zero failures. The160-test audit total
 below is historical. [Cross-repository senior-review evidence](../../client/docs/SENIOR-REVIEW-2026-10-08.md)
-records fail-before checks and the client boundary; no source import/live mutation.
+records fail-before checks and the460/44 client plus12 focused/2files boundary.
+These are completed review runs, not tests rerun for this prose-only alignment;
+no new deployment is verified and no source import/live mutation is performed.
 
 ## Championship versus selected results
 
@@ -50,7 +91,7 @@ Entity options come from published entries for the selected season/session, not 
 
 An invalid URL selection is retained visibly with an explanation; Reset analysis filters explicitly returns to the season's default Race slice while retaining its pinned publication. Season/session changes clear dependent entity selections. Season leaders, latest/next race and timeline remain labelled season context; rates and charts are labelled selected-result scope.
 
-## Verification boundary
+## Historical audit verification — before senior review
 
 Latest followup: comparison `pointsPerRace` is null for missing points, zero established starts or Qualifying; genuine zero points with established race/sprint starts remains zero. Qualifying comparison counts published entries explicitly through `qualifyingEntries` and `startDefinition: published qualifying entries`; its legacy `races` metric is an entry count for that session and the client labels it accordingly. It is not evidence of a race start or retirement. Focused API verification now passes 20 cases; see the implementation log for retained fail-first output and the earlier full-suite boundary.
 

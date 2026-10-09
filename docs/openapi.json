@@ -7900,7 +7900,9 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/RefreshDataRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDataRequest"
+              }
             }
           }
         },
@@ -7909,7 +7911,9 @@
             "description": "Checked latest race refresh outcome.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/RefreshDataResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshDataResponse"
+                }
               }
             }
           },
@@ -7917,7 +7921,9 @@
             "description": "Invalid request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           },
@@ -7925,18 +7931,27 @@
             "description": "Internal error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           },
           "503": {
             "description": "Provider or database temporarily unavailable",
             "headers": {
-              "Retry-After": { "schema": { "type": "string", "minLength": 1 } }
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" }
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
               }
             }
           }
@@ -8099,22 +8114,147 @@
         "summary": "Read performance analytics",
         "description": "Build a responsive analytics dashboard from the active published archive snapshot. Missing records remain explicit and are never inferred.",
         "parameters": [
-          { "name": "season", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1900, "maximum": 2200 } },
-          { "name": "fromRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
-          { "name": "toRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
-          { "name": "driverIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
-          { "name": "constructorIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
-          { "name": "circuitIds", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
-          { "name": "sessionType", "in": "query", "required": false, "schema": { "type": "string", "enum": ["race", "qualifying", "sprint"], "default": "race" } },
-          { "name": "snapshotId", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 160 } },
-          { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string", "minLength": 1 } }
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1900,
+              "maximum": 2200
+            }
+          },
+          {
+            "name": "fromRound",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "toRound",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "driverIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "constructorIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "circuitIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "sessionType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "race",
+                "qualifying",
+                "sprint"
+              ],
+              "default": "race"
+            }
+          },
+          {
+            "name": "snapshotId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Analytics dashboard envelope.", "headers": { "ETag": { "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/analyticsDashboardResponse" } } } },
-          "304": { "description": "Unchanged representation; no body." },
-          "400": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "Unknown season or snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "500": { "description": "Internal error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "200": {
+            "description": "Analytics dashboard envelope.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/analyticsDashboardResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; no body."
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown season or snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         },
         "x-reject-unknown-query-parameters": true
       }
@@ -8125,19 +8265,267 @@
         "summary": "Compare driver performance",
         "description": "Compare driver metrics calculated from published race results in the selected archive snapshot.",
         "parameters": [
-          { "name": "season", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1900, "maximum": 2200 } },
-          { "name": "fromRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
-          { "name": "toRound", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
-          { "name": "drivers", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 4096 } },
-          { "name": "snapshotId", "in": "query", "required": false, "schema": { "type": "string", "maxLength": 160 } },
-          { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string", "minLength": 1 } }
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1900,
+              "maximum": 2200
+            }
+          },
+          {
+            "name": "fromRound",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "toRound",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "drivers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "snapshotId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Driver comparison envelope.", "headers": { "ETag": { "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/analyticsDriverComparisonResponse" } } } },
-          "304": { "description": "Unchanged representation; no body." },
-          "400": { "description": "Invalid request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "404": { "description": "Unknown season or snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-          "500": { "description": "Internal error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "200": {
+            "description": "Driver comparison envelope.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/analyticsDriverComparisonResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; no body."
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown season or snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-reject-unknown-query-parameters": true
+      }
+    },
+    "/seasons/{year}/championship-graphics": {
+      "get": {
+        "operationId": "getHomeChampionshipGraphics",
+        "summary": "Read bounded Home top-three championship graphics",
+        "description": "Read-only bounded projection at one publication. Server derives each displayed top three from standingSnapshotId. Completed season rounds through that standing round only (maximum 64); three batched dataset stages, no upstream reads. Driver and constructor gaps use each historical round’s published rank-one leader across ALL standings for that kind, including championship sprint scoring. Exact decimal strings and explicit partial/missing coverage are retained; null gaps break lines. Supplementary driver race entry points use Race-only classification, never standings deltas. Aggregate coverage is complete only when calendar scope, all displayed standings cells and supplementary driver race cells are complete; missing supplementary evidence makes the aggregate partial without downgrading valid standings cells. Missing or malformed calendar scope is unavailable. No collection paging is needed: the bounded response contains every eligible round.",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1950
+            }
+          },
+          {
+            "name": "standingSnapshotId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^standing:[0-9]+:[1-9][0-9]*$",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "snapshotId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Opaque canonical ID. Example values are synthetic.",
+              "maxLength": 160
+            },
+            "description": ""
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": ""
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success, including explicit unavailable/partial states.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": ""
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getHomeChampionshipGraphicsResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; no body."
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Snapshot expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": ""
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": ""
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         },
         "x-reject-unknown-query-parameters": true
       }
@@ -8148,52 +8536,183 @@
       "analyticsDashboardResponse": {
         "type": "object",
         "properties": {
-          "data": { "type": "object", "required": ["analyticsDashboard"], "properties": { "analyticsDashboard": { "type": "object", "required": ["championship", "analysisScope"], "properties": { "championship": { "$ref": "#/components/schemas/AnalyticsChampionship" }, "analysisScope": { "$ref": "#/components/schemas/AnalyticsScope" } }, "additionalProperties": true } }, "additionalProperties": false },
-          "meta": { "$ref": "#/components/schemas/Meta" }
+          "data": {
+            "type": "object",
+            "required": [
+              "analyticsDashboard"
+            ],
+            "properties": {
+              "analyticsDashboard": {
+                "type": "object",
+                "required": [
+                  "championship",
+                  "analysisScope"
+                ],
+                "properties": {
+                  "championship": {
+                    "$ref": "#/components/schemas/AnalyticsChampionship"
+                  },
+                  "analysisScope": {
+                    "$ref": "#/components/schemas/AnalyticsScope"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
         },
-        "required": ["data", "meta"],
+        "required": [
+          "data",
+          "meta"
+        ],
         "additionalProperties": false
       },
       "analyticsDriverComparisonResponse": {
         "type": "object",
         "properties": {
-          "data": { "type": "object", "required": ["driverComparison"], "properties": { "driverComparison": { "type": "object", "additionalProperties": true } }, "additionalProperties": false },
-          "meta": { "$ref": "#/components/schemas/Meta" }
+          "data": {
+            "type": "object",
+            "required": [
+              "driverComparison"
+            ],
+            "properties": {
+              "driverComparison": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
         },
-        "required": ["data", "meta"],
+        "required": [
+          "data",
+          "meta"
+        ],
         "additionalProperties": false
       },
       "AnalyticsChampionship": {
         "type": "object",
         "description": "Season championship context, unaffected by analytical entity/circuit/round/session filters. Both lists belong to the stated season, publication and standings round; unavailable sets never fall back to result sums.",
-        "required": ["season", "round", "snapshotId", "drivers", "constructors", "driverCoverage", "constructorCoverage", "driverEvidenceId", "constructorEvidenceId"],
+        "required": [
+          "season",
+          "round",
+          "snapshotId",
+          "drivers",
+          "constructors",
+          "driverCoverage",
+          "constructorCoverage",
+          "driverEvidenceId",
+          "constructorEvidenceId"
+        ],
         "properties": {
-          "season": { "type": "integer" },
-          "round": { "type": ["integer", "null"] },
-          "snapshotId": { "type": "string" },
-          "drivers": { "type": "array", "items": { "$ref": "#/components/schemas/Standing" } },
-          "constructors": { "type": "array", "items": { "$ref": "#/components/schemas/Standing" } },
-          "driverCoverage": { "$ref": "#/components/schemas/Coverage" },
-          "constructorCoverage": { "$ref": "#/components/schemas/Coverage" },
-          "driverEvidenceId": { "type": ["string", "null"] },
-          "constructorEvidenceId": { "type": ["string", "null"] }
+          "season": {
+            "type": "integer"
+          },
+          "round": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "drivers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Standing"
+            }
+          },
+          "constructors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Standing"
+            }
+          },
+          "driverCoverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "constructorCoverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "driverEvidenceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "constructorEvidenceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "additionalProperties": false
       },
       "AnalyticsScope": {
         "type": "object",
         "description": "Selected published result slice. Counts are coverage-limited. Empty analysis is distinct from a genuine zero. Retirement rates use known finished/retired starts and are null when the denominator is zero or session is qualifying. DNS/withdrawn, DSQ, other/unknown outcomes are disclosed separately; position alone never supplies classification.",
-        "required": ["season", "sessionType", "fromRound", "toRound", "matchingEntries", "empty", "coverage", "publishedSessions", "selectedEvents"],
+        "required": [
+          "season",
+          "sessionType",
+          "fromRound",
+          "toRound",
+          "matchingEntries",
+          "empty",
+          "coverage",
+          "publishedSessions",
+          "selectedEvents"
+        ],
         "properties": {
-          "season": { "type": "integer" },
-          "sessionType": { "type": "string", "enum": ["race", "sprint", "qualifying"] },
-          "fromRound": { "type": ["integer", "null"] },
-          "toRound": { "type": ["integer", "null"] },
-          "matchingEntries": { "type": "integer", "minimum": 0 },
-          "empty": { "type": "boolean" },
-          "coverage": { "$ref": "#/components/schemas/Coverage" },
-          "publishedSessions": { "type": "integer", "minimum": 0 },
-          "selectedEvents": { "type": "integer", "minimum": 0 }
+          "season": {
+            "type": "integer"
+          },
+          "sessionType": {
+            "type": "string",
+            "enum": [
+              "race",
+              "sprint",
+              "qualifying"
+            ]
+          },
+          "fromRound": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "toRound": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "matchingEntries": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "publishedSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "selectedEvents": {
+            "type": "integer",
+            "minimum": 0
+          }
         },
         "additionalProperties": false
       },
@@ -11607,9 +12126,15 @@
       "RefreshDataRequest": {
         "type": "object",
         "properties": {
-          "season": { "type": "integer", "minimum": 1950, "maximum": 2200 }
+          "season": {
+            "type": "integer",
+            "minimum": 1950,
+            "maximum": 2200
+          }
         },
-        "required": ["season"],
+        "required": [
+          "season"
+        ],
         "additionalProperties": false
       },
       "RefreshDataResponse": {
@@ -11617,14 +12142,44 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["updated", "unchanged", "pending", "busy", "cooldown", "no-race"]
+            "enum": [
+              "updated",
+              "unchanged",
+              "pending",
+              "busy",
+              "cooldown",
+              "no-race"
+            ]
           },
-          "message": { "type": "string", "minLength": 1 },
-          "checkedAt": { "type": ["string", "null"], "format": "date-time" },
-          "publicationId": { "type": ["string", "null"], "minLength": 1 },
-          "retryAfterMs": { "type": "integer", "minimum": 0 }
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checkedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "publicationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "retryAfterMs": {
+            "type": "integer",
+            "minimum": 0
+          }
         },
-        "required": ["status", "message", "checkedAt", "publicationId"],
+        "required": [
+          "status",
+          "message",
+          "checkedAt",
+          "publicationId"
+        ],
         "additionalProperties": false
       },
       "QuestionRequest": {
@@ -13190,6 +13745,361 @@
         "required": [
           "data",
           "meta"
+        ],
+        "additionalProperties": false
+      },
+      "HomeGraphicsRound": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "round",
+          "eventId",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "HomeDriverChaseRound": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderPoints": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          },
+          "racePoints": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "raceCoverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "round",
+          "points",
+          "gap",
+          "rank",
+          "leaderId",
+          "leaderName",
+          "leaderPoints",
+          "coverage",
+          "racePoints",
+          "raceCoverage"
+        ],
+        "additionalProperties": false
+      },
+      "HomeDriverChaseSeries": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeDriverChaseRound"
+            }
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "rounds"
+        ],
+        "additionalProperties": false
+      },
+      "HomeChampionshipGraphics": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1950
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "standingSnapshotId": {
+            "type": "string"
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeGraphicsRound"
+            },
+            "maxItems": 64
+          },
+          "drivers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeDriverChaseSeries"
+            },
+            "maxItems": 3
+          },
+          "constructors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeConstructorChaseSeries"
+            },
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "year",
+          "round",
+          "snapshotId",
+          "standingSnapshotId",
+          "rounds",
+          "drivers",
+          "constructors"
+        ],
+        "additionalProperties": false
+      },
+      "getHomeChampionshipGraphicsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "championshipGraphics": {
+                "$ref": "#/components/schemas/HomeChampionshipGraphics"
+              }
+            },
+            "required": [
+              "championshipGraphics"
+            ],
+            "additionalProperties": false
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "HomeConstructorChaseRound": {
+        "type": "object",
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderPoints": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+                "description": "Exact published/derived decimal, including legitimate negative points."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "round",
+          "points",
+          "gap",
+          "rank",
+          "leaderId",
+          "leaderName",
+          "leaderPoints",
+          "coverage"
+        ],
+        "additionalProperties": false
+      },
+      "HomeConstructorChaseSeries": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeConstructorChaseRound"
+            }
+          }
+        },
+        "required": [
+          "entityId",
+          "name",
+          "rounds"
         ],
         "additionalProperties": false
       }

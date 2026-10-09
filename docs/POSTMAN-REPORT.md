@@ -107,6 +107,9 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Validation       | getAnalyticsDashboard        | 400 |
 | Success          | getAnalyticsDriverComparison | 200 |
 | Validation       | getAnalyticsDriverComparison | 400 |
+| Success          | getHomeChampionshipGraphics  | 200 |
+| Validation       | getHomeChampionshipGraphics  | 400 |
+| Missing resource | getHomeChampionshipGraphics  | 400 |
 | Health           | live                         | 200 |
 | Health           | ready                        | 200 |
 | CORS             | allowed preflight            | 204 |
@@ -119,7 +122,7 @@ Environment: loopback-only Express server with a deterministic fictional reposit
 | Validation       | reversed lap range           | 400 |
 | Maintenance      | no public sync route         | 404 |
 
-Requests: 114. Assertions: 192. Failures: 0.
+Requests: 117. Assertions: 197. Failures: 0.
 
 Coverage: every documented OpenAPI operation, validation, missing resources, pagination, filtering, snapshots, health/readiness and CORS. Unsupported data is explicitly unavailable; a 200 response does not imply every enrichment is implemented. The public refresh endpoint is restricted to a current-season source check; arbitrary sync/import remain operator CLI commands.
 

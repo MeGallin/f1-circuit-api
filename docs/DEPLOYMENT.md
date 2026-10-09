@@ -2,7 +2,24 @@
 
 The API is a stateless Docker web service intended for Render. PostgreSQL is external, hosted by Supabase. The browser is a separate static application at `https://f1.livenotice.co.uk`.
 
-## Current release verification — 7 October 2026
+## Current local review versus deployment — 8 October 2026
+
+Final local inspection found API HEAD10fa996 and client HEAD9b5c3a9 with implementation
+locally committed and this documentation alignment dirty. No fresh remote/push
+or API/frontend deployment is verified; this task made no commit. Recorded checks are163 API tests plus
+Newman114 requests/192 assertions, and460 client tests/44 files plus12 focused/
+2files after whitespace-only generator cleanup. Fixture/local-browser success is
+not a release. See [current review](../../client/docs/SENIOR-REVIEW-2026-10-08.md)
+for checks and the62-file/265,860-byte SHA-256 external evidence inventory.
+This documentation-only alignment runs no tests/builds/dispatch/import/live writes.
+
+User-managed release still requires the intended API/client revisions, production
+smoke/CORS, provider post-race publication and observed scheduled cadence; real
+PostgreSQL multi-process locking/cooldown and rights/accessibility remain separate.
+The earlier7 October deployment/connectivity proof below is retained and does not
+deploy the8 October changes. TLS verification remains enabled; secrets stay external.
+
+## Historical verified release/connectivity — 7 October 2026
 
 The user confirmed the TLS fix was pushed as `7bb44feba032f9ce254d88911faa2ba59666a82e`. Parent browser evidence confirms [Render deployment](https://dashboard.render.com/web/srv-damhhhbm8hqs73d62b8g/deploys/dep-db37fpnlk1mc739ml4a0) reached **Live** on 7 October at 17:48 BST on that commit, with readiness HTTP 200. [Actions run #8](https://github.com/MeGallin/f1-circuit-api/actions/runs/37655393608) succeeded on the same commit after replacement of the existing CA secret, logging `One-shot current-season check finished: scheduled.` Secure database connectivity and the scheduler decision are verified. Post-race provider fetch/publication, future scheduled-trigger cadence, production-origin CORS and real PostgreSQL multi-process lock/cooldown behavior remain unverified. This supersedes the deployment and Actions configuration/dispatch pending statuses below, without claiming full production validation.
 

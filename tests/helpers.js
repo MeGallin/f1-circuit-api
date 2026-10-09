@@ -98,6 +98,7 @@ export function exampleRequest(operation, repository) {
         toYear: 2024,
         from: '2024-01-01T12:00:00Z',
         to: '2024-01-01T12:01:00Z',
+        standingSnapshotId: 'standing:2024:1',
       }[p.name];
   return {
     path:

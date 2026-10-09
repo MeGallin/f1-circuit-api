@@ -9,7 +9,12 @@ fail-first regressions. See [metric contract](ANALYTICS-METRICS.md) and
 [cross-repository review](../../client/docs/SENIOR-REVIEW-2026-10-08.md).
 Earlier160/158 counts below remain dated history; no deployment/live writes/imports.
 
-## Analytics audit batch — 8 October 2026
+The companion client recorded460 tests/44 files plus12 focused/2files after
+whitespace-only generator cleanup; parent accepted normal UI/browser gates.
+No tests/builds rerun for this documentation-only alignment, and no new release
+verification is implied by those fixture/local-browser results.
+
+## Historical analytics audit batch — 8 October 2026 (before senior review)
 
 UX-01/02/08 now distinguish published championship standings from selected-result points, share an explicit retirement/unknown outcome definition, and limit entity options to published season/session entries. Season context remains independent of analytical circuit/round/entity filters. Missing records remain unavailable; standings links pin publication and round. See [metric/scope contract](ANALYTICS-METRICS.md) and the [implementation verification log](../../client/docs/UX-AUDIT-IMPLEMENTATION-VERIFICATION.md).
 
