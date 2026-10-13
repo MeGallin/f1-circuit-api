@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { invalid } from '../errors/api-error.js';
 import { hash, meta } from '../models/dataset.js';
+import { pointsGap } from '../models/championship-points.js';
 
 // Bound the projection to one season, not a cross-archive scan. Scoring uses
 // decimal arithmetic; JS numbers are reserved for ranks/rounds and UI geometry.
@@ -67,7 +68,7 @@ function standingRound(rows, standingCoverage, entityId) {
   const leader = leaders.length === 1 ? leaders[0] : null;
   const leaderPoints = score(leader?.points);
   const points = score(own?.points);
-  const difference = points && leaderPoints ? leaderPoints.minus(points) : null;
+  const difference = pointsGap(leader?.points, own?.points);
   return {
     points: points?.toFixed() ?? null,
     gap: difference && !difference.isNegative() ? difference.toFixed() : null,

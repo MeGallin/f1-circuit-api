@@ -1,5 +1,21 @@
 # Analytics metric and scope contract — 8 October 2026
 
+## Standing gaps and title outlook — 13 October 2026
+
+[Current outlook contract](STANDING-OUTLOOK.md) adds exact score gaps for stored
+years and a2026-only, source-qualified conditional sufficient title target. It
+shares Decimal gap math/request-local batches with existing projections, preserves
+partial source/rank-trust disclosures, and never borrows2026 scoring for older years.
+Countback and exact minimum winning requirements remain uncalculated.
+
+## Standings podium amendment — 13 October 2026
+
+[Stored-result podium contract and verification](STANDING-PODIUMS.md) adds
+publication/round-pinned driver and per-car constructor counts to `getStandings`.
+Podium-slot completeness is independent of generic partial source coverage;
+observed partial counts and unavailable evidence remain explicit. Existing
+championship points, analytics outcome definitions and Home graphics are unchanged.
+
 Implements audit UX-01, UX-02 and UX-08. Source records are read at one publication snapshot; no source imports or database rewrites are needed.
 
 ## Latest Home-only read projection — 9 October 2026

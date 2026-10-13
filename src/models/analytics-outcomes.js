@@ -35,3 +35,6 @@ export function summarizeOutcomes(rows) {
       : null,
   };
 }
+// Published rank eligibility shared by analytics and stored-result projections.
+export const rankedResult = (row) =>
+  row?.position != null && !['not-started', 'withdrawn', 'disqualified'].includes(row.status);

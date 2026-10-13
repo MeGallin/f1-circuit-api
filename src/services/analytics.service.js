@@ -1,6 +1,6 @@
 import { invalid, missing } from '../errors/api-error.js';
 import { hash, meta } from '../models/dataset.js';
-import { summarizeOutcomes } from '../models/analytics-outcomes.js';
+import { summarizeOutcomes, rankedResult } from '../models/analytics-outcomes.js';
 
 const splitIds = (value, name) => {
   if (value == null || value === '') return [];
@@ -40,8 +40,6 @@ const driverRows = (rows) =>
   );
 // A published rank is useful for position charts; it does not establish a finish,
 // a start or the source's explicit classification boolean.
-const rankedResult = (row) =>
-  row?.position != null && !['not-started', 'withdrawn', 'disqualified'].includes(row.status);
 
 const entryDriver = (row) => row?.entry?.drivers?.[0] || null;
 const entryConstructor = (row) => row?.entry?.constructor || null;

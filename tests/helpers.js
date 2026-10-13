@@ -29,6 +29,9 @@ export class MemoryRepository {
   async get(key) {
     return this.sets.get(key) || null;
   }
+  async getMany(keys) {
+    return new Map(keys.map((key) => [key, this.sets.get(key) || null]));
+  }
   async keys(prefix) {
     return [...this.sets.keys()].filter((k) => k.startsWith(prefix));
   }

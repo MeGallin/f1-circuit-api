@@ -1,7 +1,7 @@
 {
   "version": "1.0.0-draft.1",
   "status": "planning-draft",
-  "openapiSha256": "f4def696a3aea2885af1657c2eb6c73dc0dd29b1c573b7a31351db12ba4c049c",
+  "openapiSha256": "67693e658a1607041ff3ef7e5147ec1ca18582628863d11d59083ef5576dba2f",
   "operations": 38,
-  "schemas": 96
+  "schemas": 98
 }

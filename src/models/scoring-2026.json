@@ -1,0 +1,84 @@
+{
+  "version": "2026-fia-a2.2-issue03-calendar-2026-10-13",
+  "year": 2026,
+  "reviewedAt": "2026-10-13",
+  "race": { "drivers": "25", "constructors": "43" },
+  "sprint": { "drivers": "8", "constructors": "15" },
+  "fastestLapBonus": "0",
+  "awards": {
+    "race": ["25", "18", "15", "12", "10", "8", "6", "4", "2", "1"],
+    "sprint": ["8", "7", "6", "5", "4", "3", "2", "1"]
+  },
+  "sources": [
+    "https://www.fia.com/system/files/documents/fia_2026_f1_regulations_-_section_a_general_provisions_-_iss_03_-_2026-06-25.pdf",
+    "https://www.fia.com/news/fia-and-formula-1-announce-2026-sprint-calendar",
+    "https://www.formula1.com/en/racing/2026"
+  ],
+  "policy": "FIA A2.2.1/.2 full-points ceilings; two scoring constructor cars. Exhaustive six-host FIA sprint declaration plus reviewed current 23-round calendar supplies explicit sprint/no-sprint evidence per canonical event AND circuit. No inference from missing sprint sessions. Published calendar, full points, unchanged rules/no additional events or penalties. Conservative sufficient target remains unchanged: no exact minimum or countback calculation. Bounded scenarios may prove A2.1.4 race-wins-only dominance using valid published wins and remaining race opportunities; equal wins and all later countback stages remain unresolved. Other-rival pattern ceilings are independent upper bounds, not simultaneous finishing-place allocations.",
+  "events": [
+    { "round": 1, "event": "australian-grand-prix", "circuit": "albert_park", "sprint": false },
+    {
+      "round": 2,
+      "event": "chinese-grand-prix",
+      "circuit": "shanghai",
+      "sprint": true,
+      "sprintDate": "2026-03-14"
+    },
+    { "round": 3, "event": "japanese-grand-prix", "circuit": "suzuka", "sprint": false },
+    {
+      "round": 4,
+      "event": "miami-grand-prix",
+      "circuit": "miami",
+      "sprint": true,
+      "sprintDate": "2026-05-02"
+    },
+    {
+      "round": 5,
+      "event": "canadian-grand-prix",
+      "circuit": "villeneuve",
+      "sprint": true,
+      "sprintDate": "2026-05-23"
+    },
+    { "round": 6, "event": "monaco-grand-prix", "circuit": "monaco", "sprint": false },
+    { "round": 7, "event": "barcelona-grand-prix", "circuit": "catalunya", "sprint": false },
+    { "round": 8, "event": "austrian-grand-prix", "circuit": "red_bull_ring", "sprint": false },
+    {
+      "round": 9,
+      "event": "british-grand-prix",
+      "circuit": "silverstone",
+      "sprint": true,
+      "sprintDate": "2026-07-04"
+    },
+    { "round": 10, "event": "belgian-grand-prix", "circuit": "spa", "sprint": false },
+    { "round": 11, "event": "hungarian-grand-prix", "circuit": "hungaroring", "sprint": false },
+    {
+      "round": 12,
+      "event": "dutch-grand-prix",
+      "circuit": "zandvoort",
+      "sprint": true,
+      "sprintDate": "2026-08-22"
+    },
+    { "round": 13, "event": "italian-grand-prix", "circuit": "monza", "sprint": false },
+    { "round": 14, "event": "spanish-grand-prix", "circuit": "madring", "sprint": false },
+    { "round": 15, "event": "azerbaijan-grand-prix", "circuit": "baku", "sprint": false },
+    {
+      "round": 16,
+      "event": "bahrain-grand-prix-in-malaysia",
+      "circuit": "sepang",
+      "sprint": false
+    },
+    {
+      "round": 17,
+      "event": "singapore-grand-prix",
+      "circuit": "marina_bay",
+      "sprint": true,
+      "sprintDate": "2026-10-10"
+    },
+    { "round": 18, "event": "united-states-grand-prix", "circuit": "americas", "sprint": false },
+    { "round": 19, "event": "mexico-city-grand-prix", "circuit": "rodriguez", "sprint": false },
+    { "round": 20, "event": "brazilian-grand-prix", "circuit": "interlagos", "sprint": false },
+    { "round": 21, "event": "las-vegas-grand-prix", "circuit": "vegas", "sprint": false },
+    { "round": 22, "event": "qatar-grand-prix", "circuit": "losail", "sprint": false },
+    { "round": 23, "event": "abu-dhabi-grand-prix", "circuit": "yas_marina", "sprint": false }
+  ]
+}

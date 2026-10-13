@@ -10528,13 +10528,50 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "getStandings derives this from stored final race results; interpret with podiumCoverage. Legacy/unprojected standing records may have null coverage."
           },
           "standingSnapshotId": {
             "type": "string",
             "minLength": 1,
             "description": "Opaque canonical ID. Example values are synthetic.",
             "maxLength": 160
+          },
+          "podiumCoverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StandingPodiumCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gapToLeader": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gapCoverage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "complete",
+                  "partial",
+                  "unavailable"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -12710,6 +12747,16 @@
               },
               "page": {
                 "$ref": "#/components/schemas/Page"
+              },
+              "titleOutlook": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StandingTitleOutlook"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -14102,6 +14149,1353 @@
           "rounds"
         ],
         "additionalProperties": false
+      },
+      "StandingPodiumCoverage": {
+        "type": "object",
+        "properties": {
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "unavailable"
+            ]
+          },
+          "throughRound": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expectedRaces": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verifiedRaces": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "observedRaces": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "snapshotId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 64,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "coverage",
+          "throughRound",
+          "expectedRaces",
+          "verifiedRaces",
+          "observedRaces",
+          "snapshotId",
+          "evidenceIds"
+        ],
+        "additionalProperties": false,
+        "description": "Stored final race positions 1–3 through the standing row’s season and round, at this publication. Complete proves all podium slots, independently of partial lower classifications. Partial counts are observed only, including observed zero; unavailable is null. Constructor credit is per car; each distinct shared-car driver receives one credit. Conflicting duplicate assertions are excluded, never counted twice."
+      },
+      "StandingTitleOutlook": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "minimum": 1950
+          },
+          "round": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "standingSnapshotId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "conditional",
+              "unavailable"
+            ]
+          },
+          "reasonCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "leaderName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remainingMaximum": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sufficientAdditional": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rivalCeiling": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetWithinAvailablePoints": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remainingRaces": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remainingSprints": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ruleVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceUrls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://"
+            }
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scenarios": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "snapshotId": {
+                    "type": "string"
+                  },
+                  "standingSnapshotId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "coverage": {
+                    "enum": [
+                      "conditional",
+                      "unavailable"
+                    ]
+                  },
+                  "reasonCode": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "now": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "secured",
+                              "not-secured",
+                              "tie-unresolved"
+                            ]
+                          },
+                          "method": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "strict-points",
+                                  "wins-countback"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "method"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "status": {
+                                  "enum": [
+                                    "secured"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "method": {
+                                  "enum": [
+                                    "strict-points",
+                                    "wins-countback"
+                                  ]
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "method": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "next": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "possible",
+                              "not-proven",
+                              "no-opportunities"
+                            ]
+                          },
+                          "event": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "eventId": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 64
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "race",
+                                      "sprint"
+                                    ]
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "format": "date"
+                                  },
+                                  "maximum": {
+                                    "type": "string",
+                                    "pattern": "^([1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+                                  }
+                                },
+                                "required": [
+                                  "eventId",
+                                  "name",
+                                  "round",
+                                  "kind",
+                                  "date",
+                                  "maximum"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "leaderGain": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "remainingAfter": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "conditions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "entityId": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "maximumPoints": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "finishAtOrBelow": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 10
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "tieResolution": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "wins-countback"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "entityId",
+                                "name",
+                                "maximumPoints",
+                                "finishAtOrBelow",
+                                "tieResolution"
+                              ],
+                              "additionalProperties": false,
+                              "allOf": [
+                                {
+                                  "if": {
+                                    "properties": {
+                                      "maximumPoints": {
+                                        "type": "null"
+                                      }
+                                    },
+                                    "required": [
+                                      "maximumPoints"
+                                    ]
+                                  },
+                                  "then": {
+                                    "properties": {
+                                      "finishAtOrBelow": {
+                                        "type": "null"
+                                      },
+                                      "tieResolution": {
+                                        "type": "null"
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "maxItems": 256
+                          },
+                          "unlistedCondition": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "entityId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "maximumPoints": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "finishAtOrBelow": {
+                                    "anyOf": [
+                                      {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 10
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "tieResolution": {
+                                    "anyOf": [
+                                      {
+                                        "enum": [
+                                          "wins-countback"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "entityId",
+                                  "name",
+                                  "maximumPoints",
+                                  "finishAtOrBelow",
+                                  "tieResolution"
+                                ],
+                                "additionalProperties": false,
+                                "allOf": [
+                                  {
+                                    "if": {
+                                      "properties": {
+                                        "maximumPoints": {
+                                          "type": "null"
+                                        }
+                                      },
+                                      "required": [
+                                        "maximumPoints"
+                                      ]
+                                    },
+                                    "then": {
+                                      "properties": {
+                                        "finishAtOrBelow": {
+                                          "type": "null"
+                                        },
+                                        "tieResolution": {
+                                          "type": "null"
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "event",
+                          "leaderGain",
+                          "remainingAfter",
+                          "conditions",
+                          "unlistedCondition"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "status": {
+                                  "enum": [
+                                    "no-opportunities"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "event": {
+                                  "type": "null"
+                                },
+                                "leaderGain": {
+                                  "type": "null"
+                                },
+                                "remainingAfter": {
+                                  "type": "null"
+                                },
+                                "conditions": {
+                                  "maxItems": 0
+                                },
+                                "unlistedCondition": {
+                                  "type": "null"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "event": {
+                                  "type": "object"
+                                },
+                                "leaderGain": {
+                                  "type": "string",
+                                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                },
+                                "remainingAfter": {
+                                  "type": "string",
+                                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "if": {
+                              "properties": {
+                                "status": {
+                                  "enum": [
+                                    "possible"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "conditions": {
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "maximumPoints": {
+                                        "type": "string",
+                                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                      }
+                                    }
+                                  }
+                                },
+                                "unlistedCondition": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "maximumPoints": {
+                                          "type": "string",
+                                          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "earliest": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "possible",
+                              "proven-path",
+                              "already-secured",
+                              "not-proven"
+                            ]
+                          },
+                          "event": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "eventId": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 64
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "race",
+                                      "sprint"
+                                    ]
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "format": "date"
+                                  },
+                                  "maximum": {
+                                    "type": "string",
+                                    "pattern": "^([1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+                                  }
+                                },
+                                "required": [
+                                  "eventId",
+                                  "name",
+                                  "round",
+                                  "kind",
+                                  "date",
+                                  "maximum"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "leaderPoints": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "strongestRivalCeiling": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "witness": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "event",
+                          "leaderPoints",
+                          "strongestRivalCeiling",
+                          "witness"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "status": {
+                                  "enum": [
+                                    "possible",
+                                    "proven-path"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "event": {
+                                  "type": "object"
+                                },
+                                "leaderPoints": {
+                                  "type": "string",
+                                  "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                },
+                                "strongestRivalCeiling": {
+                                  "type": "string",
+                                  "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "event": {
+                                  "type": "null"
+                                },
+                                "leaderPoints": {
+                                  "type": "null"
+                                },
+                                "strongestRivalCeiling": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "constantGap": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "hypothetical"
+                            ]
+                          },
+                          "event": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "eventId": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 64
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "race",
+                                      "sprint"
+                                    ]
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "format": "date"
+                                  },
+                                  "maximum": {
+                                    "type": "string",
+                                    "pattern": "^([1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+                                  }
+                                },
+                                "required": [
+                                  "eventId",
+                                  "name",
+                                  "round",
+                                  "kind",
+                                  "date",
+                                  "maximum"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "remainingAfter": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "event",
+                          "remainingAfter"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "event": {
+                                  "type": "null"
+                                }
+                              },
+                              "required": [
+                                "event"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "remainingAfter": {
+                                  "type": "null"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "remainingAfter": {
+                                  "type": "string",
+                                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "winningPattern": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "guaranteed-path",
+                              "already-secured",
+                              "not-proven"
+                            ]
+                          },
+                          "event": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "eventId": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "round": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 64
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "race",
+                                      "sprint"
+                                    ]
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "format": "date"
+                                  },
+                                  "maximum": {
+                                    "type": "string",
+                                    "pattern": "^([1-9][0-9]*(\\.[0-9]+)?|0\\.[0-9]*[1-9][0-9]*)$"
+                                  }
+                                },
+                                "required": [
+                                  "eventId",
+                                  "name",
+                                  "round",
+                                  "kind",
+                                  "date",
+                                  "maximum"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "leaderPoints": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "strongestRivalCeiling": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "outcome": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "event",
+                          "leaderPoints",
+                          "strongestRivalCeiling",
+                          "outcome"
+                        ],
+                        "additionalProperties": false,
+                        "allOf": [
+                          {
+                            "if": {
+                              "properties": {
+                                "status": {
+                                  "enum": [
+                                    "guaranteed-path"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "status"
+                              ]
+                            },
+                            "then": {
+                              "properties": {
+                                "event": {
+                                  "type": "object"
+                                },
+                                "leaderPoints": {
+                                  "type": "string",
+                                  "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                },
+                                "strongestRivalCeiling": {
+                                  "type": "string",
+                                  "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                                }
+                              }
+                            },
+                            "else": {
+                              "properties": {
+                                "event": {
+                                  "type": "null"
+                                },
+                                "leaderPoints": {
+                                  "type": "null"
+                                },
+                                "strongestRivalCeiling": {
+                                  "type": "null"
+                                }
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "snapshotId",
+                  "standingSnapshotId",
+                  "coverage",
+                  "reasonCode",
+                  "now",
+                  "next",
+                  "earliest",
+                  "constantGap",
+                  "winningPattern"
+                ],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "coverage": {
+                          "const": "conditional"
+                        }
+                      },
+                      "required": [
+                        "coverage"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "now": {
+                          "type": "object"
+                        },
+                        "next": {
+                          "type": "object"
+                        },
+                        "earliest": {
+                          "type": "object"
+                        },
+                        "constantGap": {
+                          "type": "object"
+                        },
+                        "winningPattern": {
+                          "type": "object"
+                        },
+                        "reasonCode": {
+                          "type": "null"
+                        }
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "now": {
+                          "type": "null"
+                        },
+                        "next": {
+                          "type": "null"
+                        },
+                        "earliest": {
+                          "type": "null"
+                        },
+                        "constantGap": {
+                          "type": "null"
+                        },
+                        "winningPattern": {
+                          "type": "null"
+                        },
+                        "reasonCode": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "earliest": {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "const": "already-secured"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "earliest"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "now": {
+                          "properties": {
+                            "status": {
+                              "const": "secured"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "winningPattern": {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "const": "already-secured"
+                            }
+                          },
+                          "required": [
+                            "status"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "winningPattern"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "now": {
+                          "properties": {
+                            "status": {
+                              "const": "secured"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "year",
+          "round",
+          "snapshotId",
+          "standingSnapshotId",
+          "coverage",
+          "reasonCode",
+          "leaderId",
+          "leaderName",
+          "remainingMaximum",
+          "sufficientAdditional",
+          "rivalCeiling",
+          "targetWithinAvailablePoints",
+          "remainingRaces",
+          "remainingSprints",
+          "ruleVersion",
+          "sourceUrls",
+          "assumptions"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "coverage": {
+                  "const": "conditional"
+                }
+              },
+              "required": [
+                "coverage"
+              ]
+            },
+            "then": {
+              "properties": {
+                "round": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 64
+                },
+                "standingSnapshotId": {
+                  "type": "string"
+                },
+                "leaderId": {
+                  "type": "string"
+                },
+                "leaderName": {
+                  "type": "string"
+                },
+                "remainingMaximum": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                },
+                "sufficientAdditional": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                },
+                "rivalCeiling": {
+                  "type": "string",
+                  "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                },
+                "remainingRaces": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "remainingSprints": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "ruleVersion": {
+                  "type": "string"
+                },
+                "targetWithinAvailablePoints": {
+                  "type": "boolean"
+                },
+                "reasonCode": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "scenarios": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "coverage": {
+                          "const": "unavailable"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "description": "Leader-only conditional sufficient target, not the exact minimum; its one-point safety margin does not resolve countback. Trusts published unique ranks1/2 to bound lower rivals. Approved season rules and affirmative sprint/no-sprint evidence required; unavailable never zero. Oversized target does not mean elimination or inability to secure title. Optional bounded scenarios may prove race-wins-only countback dominance; equal wins and later stages remain unresolved. Pattern rival ceilings are independent upper bounds, not simultaneous finishing allocations."
       }
     }
   }

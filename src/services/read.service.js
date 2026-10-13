@@ -1,6 +1,9 @@
 import { ApiError, invalid, missing } from '../errors/api-error.js';
 import { meta, hash } from '../models/dataset.js';
 import { HomeChampionshipGraphicsService } from './home-championship-graphics.service.js';
+import { StandingPodiumsService } from './standing-podiums.service.js';
+import { StandingOutlookService } from './standing-outlook.service.js';
+import { requestDatasets } from '../repositories/request-datasets.js';
 const keyMap = {
   getClassification: 'results',
   getQualifying: 'qualifying',
@@ -175,10 +178,20 @@ export class ReadService {
         if (!match || Number(match[1]) !== p.year)
           throw invalid('Standing snapshot does not belong to this season.');
         round = Number(match[2]);
+        if (q.round && q.round !== round) throw invalid('Round and standing snapshot disagree.');
       }
       set = normalizeStandingSet(
         await get(`standings:${p.year}:${p.kind}${round ? ':' + round : ''}`),
       );
+      const standingContext = {
+        year: p.year,
+        kind: p.kind,
+        round,
+        snapshotId: snapshot.id,
+        readMany: requestDatasets(repo, snapshot.id),
+      };
+      set = await new StandingPodiumsService(repo).project(set, standingContext);
+      set = await new StandingOutlookService().project(set, standingContext);
     } else if (op === 'getProgression') {
       set = await aggregate(`standings:${p.year}:${p.kind}:`, (r) => r.entity.id === q.entityId);
       set.items = set.items
@@ -472,6 +485,7 @@ export class ReadService {
           total: set.coverage === 'unavailable' ? null : items.length,
         },
       };
+      if (op === 'getStandings') data.titleOutlook = set.titleOutlook || null;
       if (['getTelemetry', 'getLocation'].includes(op))
         data.series = {
           resolution: q.resolution || 'raw',
@@ -483,10 +497,13 @@ export class ReadService {
       const dataSchema = contract.components.schemas[response].properties.data;
       data = { [Object.keys(dataSchema.properties)[0]]: items[0] || null };
     }
+    const metadata = meta(set, snapshot);
+    const stableMetadata = { ...metadata };
+    delete stableMetadata.generatedAt;
     return {
-      body: { data, meta: meta(set, snapshot) },
+      body: { data, meta: metadata },
       responseSchema: response,
-      etag: `"${hash([snapshot.id, op, p, q, meta(set, snapshot).freshness])}"`,
+      etag: `"${hash([snapshot.id, op, p, q, metadata.freshness, ...(op === 'getStandings' ? [data, stableMetadata] : [])])}"`,
     };
   }
 }
