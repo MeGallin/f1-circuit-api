@@ -1,6 +1,7 @@
 import { Jolpica, DEFAULT_WEEKEND_TIMEOUT_MS } from '../providers/jolpica/client.js';
 import { SyncService } from '../services/sync.service.js';
 import { runSync } from './run-sync.js';
+import { safeSyncError } from '../observability/sync-error.js';
 
 export const DEFAULT_AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 export const DEFAULT_AUTO_SYNC_GRACE_MS = 6 * 60 * 60 * 1000;
@@ -19,10 +20,7 @@ function eventStart(event) {
 }
 
 function errorInfo(error, fallbackCode) {
-  return {
-    code: error?.code || fallbackCode,
-    message: error?.message || 'Automatic publication failed.',
-  };
+  return safeSyncError(error, fallbackCode);
 }
 
 function log(logger, level, details, message) {
@@ -454,7 +452,12 @@ export function createJolpicaSeasonScheduler({
             missing.push(`${kind}-standings`);
         if (missing.length) {
           const error = new Error(
-            `Jolpica has not published complete race coverage for ${year} round ${round}: ${missing.join(', ')}.`,
+            `Jolpica has not published complete race coverage for ${year} round ${round}: ${missing.join(', ')}. ${(
+              bundle.failureDetails || []
+            )
+              .filter((item) => item.endpoint.startsWith('standings:'))
+              .map((item) => `${item.endpoint}: ${item.code} ${item.message}`)
+              .join('; ')}`,
           );
           error.code = 'RACE_PUBLICATION_COVERAGE_INCOMPLETE';
           throw error;

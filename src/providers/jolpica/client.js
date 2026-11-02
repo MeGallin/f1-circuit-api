@@ -1,4 +1,5 @@
-import { ProviderHttp } from '../http-client.js';
+import { ProviderHttp, providerError } from '../http-client.js';
+import { safeSyncError } from '../../observability/sync-error.js';
 export const DEFAULT_WEEKEND_TIMEOUT_MS = 4 * 60 * 1000;
 export class Jolpica {
   constructor(http = new ProviderHttp({ baseUrl: 'https://api.jolpi.ca/ergast/f1/' })) {
@@ -10,13 +11,18 @@ export class Jolpica {
       total = Infinity;
     const records = [];
     while (offset < total) {
-      if (offset > 100000) throw new Error('Provider pagination exceeded safety bound.');
+      if (offset > 100000)
+        throw providerError(
+          'PROVIDER_PAGINATION_ERROR',
+          'Provider pagination exceeded safety bound.',
+          path,
+        );
       const result = await this.http.get(`${path}.json?limit=100&offset=${offset}`, options);
       observations.push(result);
-      const data = result.payload.MRData;
+      const data = result.payload?.MRData;
       const batch = data?.[table]?.[field];
-      if (!Array.isArray(batch) || !/^\d+$/.test(String(data.total)))
-        throw new Error('Jolpica schema changed.');
+      if (!Array.isArray(batch) || !/^\d+$/.test(String(data?.total)))
+        throw providerError('PROVIDER_SCHEMA_ERROR', 'Jolpica schema changed.', path);
       total = Number(data.total);
       const returned =
         nested === 'Laps'
@@ -28,7 +34,12 @@ export class Jolpica {
             ? batch.reduce((n, r) => n + (r[nested]?.length || 0), 0)
             : batch.length;
       records.push(...batch);
-      if (!returned && offset < total) throw new Error('Jolpica returned incomplete pagination.');
+      if (!returned && offset < total)
+        throw providerError(
+          'PROVIDER_PAGINATION_ERROR',
+          'Jolpica returned incomplete pagination.',
+          path,
+        );
       offset += returned;
       if (!returned) break;
     }
@@ -58,6 +69,7 @@ export class Jolpica {
     if (!race) throw new Error('Round not present in provider calendar.');
     const observations = [...calendar.observations];
     const failures = [];
+    const failureDetails = [];
     const fetchRaceField = async (suffix, field, required = false) => {
       try {
         const r = await this.pages(
@@ -72,6 +84,10 @@ export class Jolpica {
       } catch (error) {
         if (required) throw error;
         failures.push(suffix);
+        failureDetails.push({
+          endpoint: suffix,
+          ...safeSyncError(error, 'PROVIDER_REQUEST_FAILED'),
+        });
       }
     };
     await fetchRaceField('results', 'Results', true);
@@ -90,8 +106,12 @@ export class Jolpica {
         );
         observations.push(...r.observations);
         standings[kind] = r.records.flatMap((x) => x[field] || []);
-      } catch {
+      } catch (error) {
         failures.push('standings:' + kind);
+        failureDetails.push({
+          endpoint: 'standings:' + kind,
+          ...safeSyncError(error, 'PROVIDER_REQUEST_FAILED'),
+        });
       }
     }
     // Required championship coverage gets the budget before the large enrichment pages.
@@ -102,7 +122,7 @@ export class Jolpica {
       ['laps', 'Laps'],
     ])
       await fetchRaceField(suffix, field);
-    return { calendar: calendar.records, race, standings, observations, failures };
+    return { calendar: calendar.records, race, standings, observations, failures, failureDetails };
   }
 
   async refreshWeekend(year, round, { calendar = null, totalTimeoutMs = 29000 } = {}) {

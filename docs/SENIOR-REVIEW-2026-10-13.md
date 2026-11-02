@@ -2,12 +2,23 @@
 
 Current outcome: all approved findings resolved and independently re-reviewed;
 full API300/check/Newman117/197 and client720/65/check passed. Parent explicitly
-accepted the frozen sampled visual matrix. Ready for the user's manual commits;
-no commit/push/deploy/import/live write performed. Known limits are recorded below.
+accepted the frozen sampled visual matrix. This completed code-review checkpoint
+has subsequently been committed by the user. Known limits are recorded below.
+
+## Commit and push checkpoint — 13 October 2026
+
+Local Git verified API HEAD `990d58757bcc6794825569dce4bb6e26f92ee77a` and client
+HEAD `c231f8b43de6df97dbabefd1180b6928b634cb86`, both with the actual subject
+`feat(standings): add evidence-aware title outlook dialog and championship metrics`.
+Both repositories were clean before this documentation update. Both pushes are
+user-confirmed, not independently remote-ref verified. No deployment, build/upload
+or live API verification was performed for this checkpoint. All checks and browser
+evidence below are dated previous runs; none were rerun for these documentation-only
+edits. These edits remain local/uncommitted; Cody performed no commit or push.
 
 ## Scope and initial findings
 
-All uncommitted API/client work is preserved. Cody configured gpt-6.1-sol/medium;
+At review time, all uncommitted API/client work was preserved. Cody configured gpt-6.1-sol/medium;
 this is not independent runtime/billing verification. Parent orchestrates and owns
 visual acceptance; Franklin provided read-only API review. No commit/push/deploy,
 source imports or live database writes are authorized.
@@ -83,8 +94,9 @@ External evidence directory above contains `senior-api-red.log`,
 `senior-api-outer-coverage-red.log`, `senior-api-frozen-focused.log`,
 `senior-api-full-check.log`, `senior-contract-regeneration.log`,
 `senior-contract-semantic-final.log`, `senior-frozen-code-hashes.json` and the client/
-asset/design logs. Initial/intermediate runs remain distinguishable. Base HEADs
-APIea73219/clienta63cac3 are unchanged; no new commit exists.
+asset/design logs. Initial/intermediate runs remain distinguishable. The review
+ran against base HEADs APIea73219/clienta63cac3; these are historical review bases,
+not current HEADs. Subsequent user commits are recorded in the checkpoint above.
 
 Functional code froze at the parent-notified13:35 checkpoint, before full gates;
 no functional/UI edits followed. Parent explicitly accepted the sampled frozen

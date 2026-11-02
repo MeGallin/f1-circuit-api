@@ -30,7 +30,10 @@ const sourceCorrectionKeys = new Set([
 
 function preserveValue(previous, incoming, key = '') {
   if (sourceCorrectionKeys.has(key) && incoming !== undefined) return incoming;
-  if (incoming === null || incoming === undefined) return previous;
+  // Preserve enrichment when it exists, but never erase an explicit nullable
+  // field just because a legacy record or newly appearing row has no old value.
+  if (incoming === null || incoming === undefined)
+    return previous === undefined ? incoming : previous;
   if (!Array.isArray(incoming) && typeof incoming !== 'object') return incoming;
   if (Array.isArray(incoming)) {
     if (!incoming.length) return previous?.length ? previous : incoming;

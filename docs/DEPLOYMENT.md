@@ -1,5 +1,12 @@
 # Deployment and import operations
 
+The [2 November R19 recovery checkpoint](R19-RECOVERY-2026-11-02.md) records the
+latent null-preservation repair, bounded sync diagnostics, final 310-test/API
+checks and verified live source/publication agreement. The guarded retry skipped
+because another process had already published R19. Data recovery does not mean
+the local uncommitted fix has been pushed or deployed; parent visual acceptance
+is recorded separately in that checkpoint.
+
 The API is a stateless Docker web service intended for Render. PostgreSQL is external, hosted by Supabase. The browser is a separate static application at `https://f1.livenotice.co.uk`.
 
 ## Current local review versus deployment — 8 October 2026

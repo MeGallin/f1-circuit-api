@@ -142,10 +142,13 @@ export class SyncService {
       const ids = new Set();
       for (const row of set.items) {
         const validation = validateSchema(set.schema, row);
-        if (!validation.valid)
-          throw new Error(
+        if (!validation.valid) {
+          const error = new Error(
             `Normalized ${set.schema} failed schema validation: ${JSON.stringify(validation.errors)}`,
           );
+          error.code = 'NORMALIZED_SCHEMA_INVALID';
+          throw error;
+        }
         if (row.id && ids.has(row.id)) throw new Error('Duplicate normalized identity.');
         ids.add(row.id);
       }

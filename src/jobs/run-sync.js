@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { safeSyncError } from '../observability/sync-error.js';
 export async function runSync(pool, provider, scope, work, { beforeWork } = {}) {
   const client = await pool.connect();
   const id = randomUUID();
@@ -31,8 +32,8 @@ export async function runSync(pool, provider, scope, work, { beforeWork } = {}) 
     if (auditStarted) {
       try {
         await client.query(
-          "UPDATE sync_runs SET status='failed',completed_at=now(),error_code='SYNC_FAILED' WHERE id=$1",
-          [id],
+          "UPDATE sync_runs SET status='failed',completed_at=now(),error_code=$2 WHERE id=$1",
+          [id, safeSyncError(error).code],
         );
       } catch {
         // Preserve the import error when recording its failure is unavailable.
