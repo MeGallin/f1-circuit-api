@@ -30,7 +30,7 @@ function addSeasonResults(repository, year, driverId, displayName, positions) {
     items: positions.map((position, index) => ({
       ...base.items[0],
       id: `result:${sessionId}:${driverId}:${index}`,
-      sessionId,
+      sessionId: sessionId.replace(':season-wins-grand-prix:', `:season-wins-grand-prix-${index}:`),
       position,
       entry: {
         ...base.items[0].entry,
@@ -96,7 +96,7 @@ test('seasonal driver race wins answer exact and natural aliases from published 
     assert.equal(result.values.metric, 'race_wins', entry.text);
     assert.equal(result.values.season, entry.season, entry.text);
     assert.equal(result.values.count, entry.count, entry.text);
-    assert.equal(result.values.coverage, 'complete', entry.text);
+    assert.equal(result.values.coverage, 'partial', entry.text); // Fixture lacks a complete calendar; result rows alone do not prove coverage.
     assert.match(
       result.values.answer,
       new RegExp(`${entry.driver} won ${entry.count} race`),

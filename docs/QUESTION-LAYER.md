@@ -4,6 +4,14 @@ The `/api/v1/questions` endpoint is a read-only query layer over the published F
 
 ## Resolution order
 
+**Current 4 November 2026:** configured requests are planner-first, then validated
+per-slot canonical resolution and registered exact execution. The no-model path
+only proposes plans through the same validator. Optional retry guidance is part of
+the original structured planner response; actionable choices need no second call.
+See [the current checkpoint](ASK-PIPELINE-2026-11-04.md) for scopes, coverage,
+index maintenance, verification and limitations. The earlier order below is retained
+as historical background and is superseded by this checkpoint.
+
 1. Deterministic handlers handle safe, recognisable query shapes without an AI provider. This includes event winners, circuit race-winner history, podiums, qualifying pole, fastest laps, pit-stop counts and leaders, driver wins and comparisons, generalized finishing-position leader counts, driver history, driver/constructor counts, separate driver metrics for starts, podiums, poles, fastest laps, retirements, disqualifications, DNS and DNQ, plus published session metrics for weather, tyre strategy, race control and overtakes. The Ask route does not fall through to generic record search.
 2. If deterministic interpretation cannot resolve the wording, the server retrieves candidate archive documents from the ready publication index using PostgreSQL full-text and pgvector similarity search. The index is a routing aid: it supplies relevant entity, event and dataset context, never facts that bypass the archive executor.
 3. The optional OpenAI JavaScript SDK adapter converts the question and retrieved candidates into a strict JSON query plan. The backend validates the plan, resolves every named entity to a canonical database record, and executes it against its own repository. The model does not supply facts, SQL, IDs, URLs, evidence or final answer prose.

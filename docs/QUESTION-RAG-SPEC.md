@@ -1,5 +1,12 @@
 # F1 Circuit question system: hybrid RAG and exact-query specification
 
+> **4 November 2026 authorized amendment:** publication activation must remain
+> independent of embedding availability. Post-commit durable/retry maintenance and
+> explicit lexical fallback supersede the activation-blocking requirements in
+> sections 4.3 and 12 below. Current implementation/evidence and limits are in
+> [ASK-PIPELINE-2026-11-04.md](ASK-PIPELINE-2026-11-04.md); the original planning
+> checklist below is historical, not a claim that every item is complete.
+
 **Status:** Approved for implementation planning
 **Scope:** Node/Express API, Supabase/Postgres publication store, OpenAI-backed Ask route, and the supporting client contract
 **Primary endpoint:** `POST /api/v1/questions`

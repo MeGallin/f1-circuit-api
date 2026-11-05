@@ -40,7 +40,8 @@ export class ReadService {
     this.repository = repository;
     this.questionService = questionService;
   }
-  async read(operation, { params: p, query: q, body }) {
+  async read(operation, { params: p, query: q, body, requestId }) {
+    let questionDiagnostics;
     let cursor = null;
     if (q.cursor) {
       try {
@@ -384,7 +385,13 @@ export class ReadService {
           warnings: [],
         };
       else {
-        const question = await this.questionService.answer(body, { snapshot, get, keys });
+        const question = await this.questionService.answer(body, {
+          snapshot,
+          get,
+          keys,
+          requestId,
+        });
+        questionDiagnostics = question.diagnostics;
         set = { ...question.dataset, items: [question.result] };
       }
     } else if (op === 'getComparison') {
@@ -503,6 +510,7 @@ export class ReadService {
     return {
       body: { data, meta: metadata },
       responseSchema: response,
+      questionDiagnostics,
       etag: `"${hash([snapshot.id, op, p, q, metadata.freshness, ...(op === 'getStandings' ? [data, stableMetadata] : [])])}"`,
     };
   }

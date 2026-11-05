@@ -153,7 +153,7 @@ test('circuit-scoped question plans compare published weather periods', async ()
       intent: 'event_session_metric',
       scope: 'circuit',
       circuitName: 'Example Circuit',
-      sessionKind: 'weekend',
+      sessionKind: 'race',
       metric: 'weather_summary',
       fromYear: 2024,
       toYear: 2024,
@@ -264,7 +264,9 @@ test('natural-language questions return database-backed answers without a model'
       },
     })
     .expect(200);
-  assert.equal(explicitYear.body.data.questionResult.values.year, 2024);
+  assert.equal(explicitYear.body.data.questionResult.status, 'clarification');
+  assert.match(explicitYear.body.data.questionResult.message, /2026/);
+  repository.sets.get('events:2024').coverage = 'complete';
 
   const championship = await request(app)
     .post('/api/v1/questions')
@@ -758,7 +760,6 @@ test('unresolved winner wording reaches the structured interpreter instead of fa
   service.interpreter = {
     interpret: async () => ({
       intent: 'event_winner',
-      searchTerms: '',
       driverName: null,
       comparisonDriverName: null,
       constructorName: null,
@@ -772,7 +773,7 @@ test('unresolved winner wording reaches the structured interpreter instead of fa
       comparisonFromYear: null,
       comparisonToYear: null,
       limit: null,
-      metric: 'results',
+      metric: 'race_wins',
       clarificationNeeded: false,
       clarificationMessage: null,
     }),

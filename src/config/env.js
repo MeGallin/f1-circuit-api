@@ -54,6 +54,7 @@ export function loadConfig(env = process.env) {
     openaiTimeoutMs: Number(env.OPENAI_TIMEOUT_MS || 10000),
     openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
     questionRagEnabled: env.QUESTION_RAG_ENABLED !== 'false',
+    questionTraceFile: env.NODE_ENV !== 'production' ? env.QUESTION_TRACE_FILE || null : null,
     autoSyncEnabled: env.AUTO_SYNC_ENABLED === 'true',
     autoSyncIntervalMs,
     autoSyncGraceMs,

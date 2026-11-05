@@ -32,6 +32,7 @@ function summary(key, item) {
     item?.event?.year,
     circuitName(item),
     item?.country,
+    ...(item?.aliases || []).map((alias) => (typeof alias === 'string' ? alias : alias.name)),
     constructorName(item),
     ...driverNames(item),
   ];
@@ -43,17 +44,31 @@ function summary(key, item) {
 function metadata(key, item, evidenceId) {
   const drivers = item?.entry?.drivers || item?.drivers || [];
   const eventId =
-    item?.event?.id || item?.eventId || item?.sessionId?.match(/^session:(.+):[^:]+$/)?.[1] || null;
+    item?.event?.id ||
+    item?.eventId ||
+    item?.sessionId?.match(/^session:(.+):[^:]+$/)?.[1] ||
+    (/^events?:/.test(key) ? item?.id : null) ||
+    null;
   return {
     recordId: item?.id || null,
     kind: item?.kind || null,
     season: item?.year || item?.event?.year || null,
     eventId,
-    driverId: drivers[0]?.id || item?.driver?.id || null,
+    driverId:
+      drivers[0]?.id || item?.driver?.id || (item?.kind === 'driver' ? item?.id : null) || null,
     driverIds: drivers.map((driver) => driver.id).filter(Boolean),
-    constructorId: item?.entry?.constructor?.id || item?.constructor?.id || null,
-    circuitId: item?.circuit?.id || item?.event?.circuit?.id || null,
+    constructorId:
+      item?.entry?.constructor?.id ||
+      item?.constructor?.id ||
+      (item?.kind === 'constructor' ? item?.id : null) ||
+      null,
+    circuitId:
+      item?.circuit?.id ||
+      item?.event?.circuit?.id ||
+      (item?.kind === 'circuit' ? item?.id : null) ||
+      null,
     sessionId: item?.sessionId || null,
+    session: item?.session || item?.sessionId?.split(':').at(-1) || null,
     position: item?.position ?? null,
     evidenceIds: [evidenceId, item?.evidenceId].filter(Boolean),
   };
@@ -87,7 +102,7 @@ export function buildQuestionDocuments({ publicationId, sets }) {
         `dataset ${set.key}`,
         `schema ${set.schema || 'unknown'}`,
         `coverage ${set.coverage || 'unknown'}`,
-        `records ${set.items?.length || 0}`,
+        `records ${set.recordCount ?? set.items?.length ?? 0}`,
         sampleFields ? `fields ${sampleFields}` : null,
         ...(set.warnings || []).map((warning) => warning.message || warning.code),
       ]
@@ -102,13 +117,15 @@ export function buildQuestionDocuments({ publicationId, sets }) {
         title: `Dataset ${set.key}`,
         content,
         metadata: {
+          publicationId,
           datasetKey: set.key,
-          recordCount: set.items?.length || 0,
+          recordCount: set.recordCount ?? set.items?.length ?? 0,
+          season: Number(set.key.match(/(?:^|:)((?:19|20)\d{2})(?=:|$)/)?.[1]) || null,
           coverage: set.coverage || 'unknown',
           verification: set.verification || 'unknown',
           evidenceIds: [set.evidenceId].filter(Boolean),
         },
-        content_hash: hash([set.key, set.items?.length || 0, set.coverage, sampleFields]),
+        content_hash: hash([content, set.coverage, set.verification]),
         publicationId,
       });
       continue;
@@ -124,8 +141,17 @@ export function buildQuestionDocuments({ publicationId, sets }) {
         dataset_key: set.key,
         title: String(displayName(item) || recordId),
         content,
-        metadata: metadata(set.key, item, set.evidenceId),
-        content_hash: hash([set.key, item]),
+        metadata: {
+          ...metadata(set.key, item, set.evidenceId),
+          publicationId,
+          datasetKey: set.key,
+          coverage: set.coverage || 'unknown',
+        },
+        content_hash: hash([
+          content,
+          { ...metadata(set.key, item), evidenceIds: undefined },
+          set.coverage,
+        ]),
         publicationId,
       });
     }

@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { hash } from '../models/dataset.js';
+import {
+  completeCalendarObservation,
+  calendarContentHash,
+} from '../questions/calendar-evidence.js';
 const WRITE_BATCH_SIZE = 500;
 
 async function insertRows(client, sql, rows, suffix = '') {
@@ -94,6 +98,88 @@ export class PublicationRepository {
       [snapshotId, alias],
     );
     return rows[0]?.canonical_id || null;
+  }
+  async calendarProof(year, calendar, snapshotId) {
+    const ids = calendar?.provenance?.observationIds;
+    if (
+      !Number.isInteger(year) ||
+      !snapshotId ||
+      (ids !== undefined && (!Array.isArray(ids) || ids.length > 64))
+    )
+      return { complete: false, reasonCode: 'CALENDAR_PROOF_CONTEXT_INVALID' };
+    const owned = await this.pool.query(
+      'SELECT d.evidence_id,p.created_at FROM datasets d JOIN publications p ON p.id=d.publication_id WHERE d.publication_id=$1 AND d.key=$2 AND d.evidence_id=$3',
+      [snapshotId, `events:${year}`, calendar.evidenceId],
+    );
+    if (!owned.rows.length) return { complete: false, reasonCode: 'CALENDAR_PUBLICATION_MISMATCH' };
+    if (ids?.length) {
+      const observations = await this.pool.query(
+        'SELECT id,provider,retrieved_at,checksum,payload FROM source_observations WHERE id=ANY($1::text[]) AND retrieved_at<=$2',
+        [ids, owned.rows[0].created_at],
+      );
+      const proof = observations.rows.find((observation) =>
+        completeCalendarObservation(year, calendar, observation),
+      );
+      return proof
+        ? { complete: true, proofType: 'explicit-reference', observationId: proof.id }
+        : { complete: false, reasonCode: 'CALENDAR_COLLECTION_UNPROVEN' };
+    }
+    const [physical, aliasRows] = await Promise.all([
+      this.pool.query(
+        'SELECT payload FROM normalized_records WHERE publication_id=$1 AND dataset_key=$2 ORDER BY ordinal,id',
+        [snapshotId, `events:${year}`],
+      ),
+      this.pool.query(
+        'SELECT alias,canonical_id FROM entity_aliases WHERE publication_id=$1 AND starts_with(alias,$2)',
+        [snapshotId, `race:${year}:`],
+      ),
+    ]);
+    const calendarHash = calendarContentHash(physical.rows.map((row) => row.payload));
+    if (calendarHash !== calendarContentHash(calendar.items))
+      return { complete: false, reasonCode: 'CALENDAR_CONTENT_MISMATCH' };
+    const resultKeys = calendar.items
+      .filter((event) => ['completed', 'finished'].includes(event.status))
+      .map((event) => `results:session:${event.id}:race`);
+    const results = await this.pool.query(
+      "SELECT d.key,d.coverage,count(n.id) FILTER (WHERE n.payload->>'sessionId'=substring(d.key from 9))::int AS rows,count(n.id) FILTER (WHERE n.payload->>'sessionId'=substring(d.key from 9) AND n.payload->>'position'='1')::int AS winners FROM datasets d LEFT JOIN normalized_records n ON n.publication_id=d.publication_id AND n.dataset_key=d.key WHERE d.publication_id=$1 AND d.key=ANY($2::text[]) GROUP BY d.key,d.coverage",
+      [snapshotId, resultKeys],
+    );
+    const published = new Set(
+      results.rows
+        .filter(
+          (row) =>
+            ['complete', 'partial'].includes(row.coverage) && row.rows > 0 && row.winners === 1,
+        )
+        .map((row) => row.key),
+    );
+    const allCompletedResultsPublished =
+      resultKeys.length > 0 && resultKeys.every((key) => published.has(key));
+    if (!allCompletedResultsPublished)
+      return { complete: false, reasonCode: 'CALENDAR_RACE_EVIDENCE_MISSING' };
+    const observations = await this.pool.query(
+      "SELECT id,provider,retrieved_at,checksum,source_url,payload FROM source_observations WHERE provider='jolpica' AND split_part(source_url,'?',1)=$1 AND retrieved_at<=$2 ORDER BY id LIMIT 32",
+      [`https://api.jolpi.ca/ergast/f1/${year}.json`, owned.rows[0].created_at],
+    );
+    const options = {
+      allowContentMatch: true,
+      publicationCreatedAt: owned.rows[0].created_at,
+      calendarHash,
+      aliases: new Map(aliasRows.rows.map((row) => [row.alias, row.canonical_id])),
+      allCompletedResultsPublished,
+    };
+    const proof = observations.rows.find((observation) =>
+      completeCalendarObservation(year, calendar, observation, options),
+    );
+    return proof
+      ? {
+          complete: true,
+          proofType: 'inferred-content-match',
+          lineageClaim: false,
+          calendarHash,
+          observationId: proof.id,
+          observationChecksum: proof.checksum,
+        }
+      : { complete: false, reasonCode: 'CALENDAR_COLLECTION_UNPROVEN' };
   }
   async evidence(evidenceId, snapshotId) {
     const { rows } = await this.pool.query(

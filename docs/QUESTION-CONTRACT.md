@@ -13,9 +13,10 @@ question text/variants
   -> API response and rendered answer
 ```
 
-The production path is hybrid: deterministic handlers run first; unresolved
-wording may use the PostgreSQL lexical/vector question index and the optional
-OpenAI planner; every successful plan still ends in a direct repository query.
+The production path is hybrid: configured requests use the PostgreSQL lexical/vector
+question index and the optional OpenAI planner first; the no-model recognizers
+propose plans through the same capability/schema validator. Every successful plan
+still ends in a direct repository query.
 The planner and retrieved documents are never allowed to answer from model
 memory or to emit executable SQL. Generic archive matching is not an Ask-route
 fallback.
@@ -49,10 +50,11 @@ The corpus is not a claim that every historical season or metric is complete.
 An answered scenario must expose the archive's coverage metadata; an unavailable
 scenario must explain the supported reason and include a deterministic suggestion
 for a more answerable wording. When the optional interpreter is available, the
-same model may rewrite that suggestion through a separate strict question-only
-schema; it receives no archive tools and is not allowed to answer. If that call
-fails or returns anything other than a question, the deterministic suggestion is
-retained. Suggestions are guidance only: they never replace the direct database
+same model may include a constraint-preserving retry question in the original
+strict plan response; it receives no archive tools and is not allowed to answer.
+There is no automatic second rephrasing call for an actionable clarification.
+Invalid suggestions retain deterministic guidance about the missing constraint.
+Suggestions are guidance only: they never replace the direct database
 query or invent an answer. The dropdown is not the source of truth for this
 contract.
 

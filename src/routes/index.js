@@ -7,13 +7,16 @@ import { QuestionService } from '../services/question.service.js';
 import { QuestionRepository } from '../repositories/question.repository.js';
 import { createAnalyticsRouter } from './analytics.js';
 import { ApiError } from '../errors/api-error.js';
-export function createRouter(repository, { config = {}, manualRefresh = null } = {}) {
+export function createRouter(
+  repository,
+  { config = {}, manualRefresh = null, logger = null } = {},
+) {
   const router = Router();
   router.use('/analytics', createAnalyticsRouter(repository));
   const questionRepository = repository.pool ? new QuestionRepository(repository.pool) : null;
   const service = new ReadService(
     repository,
-    new QuestionService(repository, { config, questionRepository }),
+    new QuestionService(repository, { config, questionRepository, logger }),
   );
   for (const operation of operations) {
     const path = operation.path.replace(/\{([^}]+)\}/g, ':$1');

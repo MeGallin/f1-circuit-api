@@ -24,8 +24,8 @@ test('unsupported questions include a concrete rewording suggestion', async () =
 
   assert.equal(result.result.status, 'unsupported');
   assert.equal(result.result.reasonCode, 'QUESTION_INTENT_UNSUPPORTED');
-  assert.match(result.result.suggestion, /Try rewording it as:/i);
-  assert.match(result.result.suggestion, /which circuit hosted the 2022 italian grand prix/i);
+  assert.match(result.result.suggestion, /same names, session and years/i);
+  assert.doesNotMatch(result.result.suggestion, /Italian Grand Prix/i);
 });
 
 test('interpreter failures include a safe retry suggestion', async () => {
@@ -40,8 +40,8 @@ test('interpreter failures include a safe retry suggestion', async () => {
 
   assert.equal(result.result.status, 'unavailable');
   assert.equal(result.result.reasonCode, 'QUESTION_INTERPRETER_UNAVAILABLE');
-  assert.match(result.result.suggestion, /Try again or reword it as:/i);
-  assert.match(result.result.suggestion, /which circuit hosted the 2022 italian grand prix/i);
+  assert.match(result.result.suggestion, /Try this complete question again/i);
+  assert.doesNotMatch(result.result.suggestion, /Italian Grand Prix/i);
 });
 
 test('clarification responses tell the user which constraints to add', async () => {
@@ -63,7 +63,7 @@ test('clarification responses tell the user which constraints to add', async () 
   );
 });
 
-test('failed answers use the model only to improve the rewording suggestion', async () => {
+test('failed answers keep deterministic guidance without an extra model call', async () => {
   const calls = [];
   const result = await answerWith(
     {
@@ -80,10 +80,8 @@ test('failed answers use the model only to improve the rewording suggestion', as
     "What is the archive's favourite colour?",
   );
 
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].text, "What is the archive's favourite colour?");
-  assert.equal(calls[0].failure.reasonCode, 'QUESTION_INTENT_UNSUPPORTED');
-  assert.equal(result.result.suggestion, 'Which circuit hosted the 2022 Italian Grand Prix?');
+  assert.equal(calls.length, 0);
+  assert.match(result.result.suggestion, /same names, session and years/i);
 });
 
 test('deterministic guidance remains when the model cannot rephrase', async () => {
@@ -102,6 +100,6 @@ test('deterministic guidance remains when the model cannot rephrase', async () =
   assert.equal(result.result.status, 'unsupported');
   assert.equal(
     result.result.suggestion,
-    'Try rewording it as: “Which circuit hosted the 2022 Italian Grand Prix?”',
+    'Specify one supported archive metric, keeping the same names, session and years.',
   );
 });

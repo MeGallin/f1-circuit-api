@@ -2,10 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { QuestionService } from '../src/services/question.service.js';
 import {
-  OpenAIQuestionInterpreter,
   questionIntentSchema,
-  questionRephraseSchema,
-  questionRephraseSystemPrompt,
   questionSystemPrompt,
 } from '../src/providers/openai/question-interpreter.js';
 import { appFixture } from './helpers.js';
@@ -21,42 +18,10 @@ test('constructor title intent is part of the model contract', () => {
   assert.match(questionSystemPrompt, /constructor_rivalry_comparison/);
 });
 
-test('model fallback is constrained to a question-only structured response', async () => {
-  assert.equal(questionRephraseSchema.properties.suggestion.type, 'string');
-  assert.deepEqual(questionRephraseSchema.required, ['suggestion']);
-  assert.match(questionRephraseSystemPrompt, /Never answer the question/);
-  assert.match(questionRephraseSystemPrompt, /untrusted user text/);
-
-  const interpreter = new OpenAIQuestionInterpreter({ apiKey: 'test-key' });
-  const calls = [];
-  interpreter.client = {
-    responses: {
-      async create(request) {
-        calls.push(request);
-        return {
-          output_text: JSON.stringify({
-            suggestion: 'Which circuit hosted the 2022 Italian Grand Prix?',
-          }),
-        };
-      },
-    },
-  };
-
-  const result = await interpreter.rephrase({
-    text: "What is the archive's favourite colour?",
-    context: { currentYear: 2026 },
-    failure: { status: 'unsupported', reasonCode: 'QUESTION_INTENT_UNSUPPORTED' },
-  });
-
-  assert.deepEqual(result, {
-    suggestion: 'Which circuit hosted the 2022 Italian Grand Prix?',
-  });
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].text.format.type, 'json_schema');
-  assert.equal(calls[0].text.format.name, 'f1_archive_question_rephrase');
-  assert.equal(calls[0].text.format.strict, true);
-  assert.equal(calls[0].text.format.schema, questionRephraseSchema);
-  assert.equal(calls[0].reasoning.effort, 'max');
+test('planner suggestions are schema-constrained and cannot add answer prose fields', () => {
+  assert.ok(questionIntentSchema.properties.suggestion);
+  assert.ok(questionIntentSchema.required.includes('suggestion'));
+  assert.equal(questionIntentSchema.additionalProperties, false);
 });
 
 function addConstructorStandings(repository) {
@@ -90,6 +55,17 @@ function addConstructorStandings(repository) {
       },
     ];
     repository.sets.set(key, set);
+    const calendar = structuredClone(repository.sets.get('events:2024'));
+    calendar.key = 'events:' + year;
+    calendar.coverage = 'complete';
+    calendar.items = calendar.items.map((event) => ({
+      ...event,
+      id: 'event:' + year + ':final',
+      year: Number(year),
+      round: 1,
+      status: 'completed',
+    }));
+    repository.sets.set(calendar.key, calendar);
     keys.push(key);
   }
   return keys;
@@ -98,7 +74,7 @@ function addConstructorStandings(repository) {
 test('model-shaped intent plans are executed against constructor standings', async () => {
   const { repository } = appFixture();
   const keys = addConstructorStandings(repository);
-  const question = 'Which manufacturer has won the most world titles over the last 20 years?';
+  const question = 'Which manufacturer has won the most world titles from 2021 to 2025?';
   const calls = [];
   const interpreter = {
     async interpret(input) {

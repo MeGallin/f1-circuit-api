@@ -60,7 +60,7 @@ export function validation(operation) {
               : 'Invalid question request.',
           );
       }
-      req.validated = { query, params, body: req.body };
+      req.validated = { query, params, body: req.body, requestId: req.requestId };
       next();
     } catch (error) {
       next(error);

@@ -1,5 +1,11 @@
 import { OpenAIQuestionInterpreter } from '../providers/openai/question-interpreter.js';
 import { OpenAIEmbeddingClient } from '../providers/openai/embeddings.js';
+import { answerQuestion } from '../questions/question-orchestrator.js';
+import { dispatchPlan } from '../questions/capability-registry.js';
+import { validatePlan } from '../questions/query-plan-schema.js';
+import { questionPeriod } from '../questions/period.js';
+import { raceCoverage } from '../questions/coverage.js';
+import { StandingOutlookService } from './standing-outlook.service.js';
 
 const emptyContext = {
   year: null,
@@ -26,24 +32,25 @@ function humanList(items) {
   return `${values.slice(0, -1).join(', ')}, and ${values.at(-1)}`;
 }
 
-function fallbackSuggestion({ status, reasonCode }) {
+function fallbackSuggestion({ status, reasonCode, choices }) {
+  if (status === 'clarification' && choices?.length) return null;
   if (status === 'clarification')
     return 'Try adding a year, event, driver, constructor or specific metric to the question.';
 
   if (reasonCode === 'QUESTION_INTERPRETER_UNAVAILABLE')
-    return 'Try again or reword it as: “Which circuit hosted the 2022 Italian Grand Prix?”';
+    return 'Try this complete question again. Keep the same names, session and years.';
 
   if (reasonCode === 'QUESTION_INTERPRETER_DISABLED')
-    return 'Try rewording it as: “Who won the 2022 Italian Grand Prix?”';
+    return 'Specify one published archive metric and retain the names and period you need.';
 
   if (reasonCode === 'QUESTION_INTENT_UNSUPPORTED')
-    return 'Try rewording it as: “Which circuit hosted the 2022 Italian Grand Prix?”';
+    return 'Specify one supported archive metric, keeping the same names, session and years.';
 
   if (reasonCode && /NOT_PUBLISHED|SOURCE_COVERAGE|UNAVAILABLE/.test(reasonCode))
-    return 'Try a published season from 2000 onward, such as: “Who won the 2022 Italian Grand Prix?”';
+    return 'Check the source coverage for the requested metric and period, then ask about a published dataset.';
 
   if (status === 'unsupported' || status === 'unavailable')
-    return 'Try rewording it as one specific archive question, such as: “Who won the 2022 Italian Grand Prix?”';
+    return 'Ask one complete question about a published archive metric, keeping the names and period you need.';
 
   return null;
 }
@@ -66,14 +73,8 @@ function contextWith(overrides = {}) {
 }
 
 function yearRange(text, context) {
-  const years = [...String(text).matchAll(/\b(19\d{2}|20\d{2})\b/g)].map((m) => Number(m[1]));
-  if (years.length >= 2) return { fromYear: Math.min(...years), toYear: Math.max(...years) };
-  if (years.length === 1) return { fromYear: years[0], toYear: years[0] };
-  const anchor = Number(context.year) || Number(context.currentYear) || new Date().getUTCFullYear();
-  if (/\bthis\s+(?:year|season)\b/i.test(text)) return { fromYear: anchor, toYear: anchor };
-  if (/\blast\s+year\b/i.test(text)) return { fromYear: anchor - 1, toYear: anchor - 1 };
-  if (/last\s+(?:four|4)\s+years?/i.test(text)) return { fromYear: anchor - 3, toYear: anchor };
-  return { fromYear: null, toYear: null };
+  const { fromYear, toYear } = questionPeriod(text, context);
+  return { fromYear: fromYear ?? context.year ?? null, toYear: toYear ?? context.year ?? null };
 }
 
 function parseHostedCircuitQuestion(text, context) {
@@ -240,8 +241,13 @@ function formatDuration(milliseconds) {
 }
 
 export class QuestionService {
-  constructor(repository, { config = {}, questionRepository = null, interpreter = null } = {}) {
+  constructor(
+    repository,
+    { config = {}, questionRepository = null, interpreter = null, logger = null } = {},
+  ) {
     this.repository = repository;
+    this.logger = logger;
+    this.questionTraceFile = config.production ? null : config.questionTraceFile || null;
     this.questionRepository = questionRepository;
     this.interpreter =
       interpreter ||
@@ -266,41 +272,29 @@ export class QuestionService {
         : null;
   }
 
-  async answer(body, { snapshot, get, keys }) {
-    const text = String(body?.text || '').trim();
-    const context = contextWith({
-      ...body?.context,
-      currentYear: new Date().getUTCFullYear(),
-    });
-    const deterministic = await this.interpretDeterministically(text, context, { get, keys });
-    if (deterministic) return this.withModelSuggestion(deterministic, { text, context });
+  async answer(body, source) {
+    return answerQuestion(this, body, source);
+  }
 
-    if (!this.interpreter)
-      return this.result(
-        {
-          status: 'unavailable',
-          message:
-            'This question could not be mapped to a supported archive operation. Use Explore for record search.',
-          reasonCode: 'QUESTION_INTERPRETER_DISABLED',
-        },
-        [],
-      );
-
-    try {
-      const candidates = await this.retrieveCandidates(text, snapshot?.id);
-      const intent = await this.interpreter.interpret({ text, context, candidates });
-      const result = await this.executeIntent(intent, context, { get, keys }, text);
-      return this.withModelSuggestion(result, { text, context });
-    } catch {
-      return this.result(
-        {
-          status: 'unavailable',
-          message: 'The natural-language interpreter is temporarily unavailable.',
-          reasonCode: 'QUESTION_INTERPRETER_UNAVAILABLE',
-        },
-        [],
-      );
-    }
+  async retrieveContext(text, publicationId, filters = {}, deadline) {
+    if (this.questionRepository?.retrieve)
+      return this.questionRepository.retrieve({
+        publicationId,
+        text,
+        filters:
+          filters.fromYear === filters.toYear && filters.fromYear
+            ? { season: filters.fromYear }
+            : {},
+        limit: 16,
+        embeddingClient: this.embeddingClient,
+        deadline,
+      });
+    const candidates = await this.retrieveCandidates(text, publicationId);
+    return {
+      status: candidates.length ? 'semantic' : 'not-ready',
+      candidates,
+      reasonCode: candidates.length ? null : 'QUESTION_INDEX_NOT_READY',
+    };
   }
 
   async retrieveCandidates(text, publicationId) {
@@ -317,31 +311,6 @@ export class QuestionService {
       });
     } catch {
       return [];
-    }
-  }
-
-  async withModelSuggestion(result, { text, context }) {
-    if (result?.result?.status === 'answered' || typeof this.interpreter?.rephrase !== 'function')
-      return result;
-
-    try {
-      const generated = await this.interpreter.rephrase({
-        text,
-        context,
-        failure: {
-          status: result.result.status,
-          message: result.result.message,
-          reasonCode: result.result.reasonCode || null,
-        },
-      });
-      const suggestion = String(generated?.suggestion || '').trim();
-      if (!suggestion || suggestion.length > 300 || !suggestion.endsWith('?')) return result;
-      return {
-        ...result,
-        result: { ...result.result, suggestion },
-      };
-    } catch {
-      return result;
     }
   }
 
@@ -416,7 +385,11 @@ export class QuestionService {
         );
       return null;
     }
-    if (/\bhow\s+many\b/.test(lower) && /\bfor\b/.test(lower)) {
+    if (
+      /\bhow\s+many\b/.test(lower) &&
+      /\bfor\b/.test(lower) &&
+      !/\b(win|wins|won|victories|podiums|points)\b/.test(lower)
+    ) {
       const { items } = await this.profiles(helpers);
       const driver = items.find(
         (profile) =>
@@ -721,13 +694,16 @@ export class QuestionService {
       const range = yearRange(text, context);
       if (range.fromYear !== null) {
         if (drivers.length >= 2 && /\b(compared\s+to|versus|vs|than)\b/.test(lower))
-          return this.result(
+          return this.executeIntent(
             {
-              status: 'unsupported',
-              message: 'Season-specific driver win comparisons are not supported yet.',
-              reasonCode: 'DRIVER_RACE_WINS_SEASON_COMPARISON_UNSUPPORTED',
+              intent: 'driver_race_wins_comparison',
+              driverName: drivers[0].entity.displayName,
+              comparisonDriverName: drivers[1].entity.displayName,
+              ...range,
             },
-            sets,
+            context,
+            helpers,
+            text,
           );
         const driver = drivers[0];
         if (driver)
@@ -782,84 +758,25 @@ export class QuestionService {
     return null;
   }
 
-  async executeIntent(intent, context, { get, keys }, originalText = '') {
-    if (intent?.clarificationNeeded)
+  async executeIntent(intent, context, helpers, originalText = '') {
+    const input = { ...intent };
+    delete input.originalText;
+    const checked = validatePlan(input);
+    if (!checked.valid)
+      return this.result(
+        { status: 'unsupported', message: checked.message, reasonCode: checked.reasonCode },
+        [],
+      );
+    if (checked.plan.clarificationNeeded)
       return this.result(
         {
           status: 'clarification',
-          message: intent.clarificationMessage || 'Please clarify what you want to find.',
-          choices: [{ label: 'Ask a supported archive question', context: contextWith({}) }],
+          message: checked.plan.clarificationMessage || 'Please clarify the archive constraint.',
+          choices: [],
         },
         [],
       );
-    if (intent?.intent === 'event_winner')
-      return this.eventWinner(intent.eventName, context, originalText, { get, keys });
-    if (intent?.intent === 'event_circuit')
-      return this.eventCircuit(intent, context, originalText, { get, keys });
-    if (intent?.intent === 'season_champion')
-      return this.seasonChampion(intent, context, { get, keys }, originalText);
-    if (intent?.intent === 'constructor_championship_leaderboard')
-      return this.constructorChampionshipLeaderboard(intent, context, { get, keys }, originalText);
-    if (intent?.intent === 'constructor_rivalry_comparison')
-      return this.constructorRivalryComparison(intent, context, { get, keys }, originalText);
-    if (intent?.intent === 'driver_constructor_race_starts')
-      return this.driverConstructorStarts(intent, context, { get, keys });
-    if (intent?.intent === 'driver_constructor_count')
-      return this.driverConstructorCount(intent, context, { get, keys });
-    if (intent?.intent === 'driver_constructor_breakdown')
-      return this.driverConstructorBreakdown(intent, context, { get, keys });
-    if (intent?.intent === 'driver_constructor_comparison')
-      return this.driverConstructorComparison(intent, context, { get, keys });
-    if (intent?.intent === 'driver_last_win')
-      return this.driverLastWin(intent, context, { get, keys });
-    if (intent?.intent === 'driver_last_race')
-      return this.driverRaceBoundary(intent, { get, keys }, 'last');
-    if (intent?.intent === 'driver_first_race')
-      return this.driverRaceBoundary(intent, { get, keys }, 'first');
-    if (intent?.intent === 'driver_first_win')
-      return this.driverWinBoundary(intent, { get, keys }, 'first');
-    if (intent?.intent === 'driver_race_wins')
-      return this.driverRaceWins(intent, context, { get, keys }, originalText);
-    if (intent?.intent === 'driver_race_wins_season')
-      return this.driverRaceWinsSeason(intent, context, { get, keys });
-    if (intent?.intent === 'driver_race_wins_comparison')
-      return this.driverRaceWinsComparison(intent, context, { get, keys });
-    if (intent?.intent === 'driver_finishing_position')
-      return this.driverFinishingPosition(intent, context, { get, keys });
-    if (intent?.intent === 'driver_stat')
-      return this.driverStat(intent, context, { get, keys }, originalText);
-    if (intent?.intent === 'event_podium')
-      return this.eventPodium(intent.eventName, context, originalText, { get, keys });
-    if (intent?.intent === 'event_compound_summary')
-      return this.eventCompoundSummary(context, originalText, { get, keys });
-    if (intent?.intent === 'fastest_lap_leaderboard')
-      return this.fastestLapLeaderboard(context, originalText, { get, keys });
-    if (intent?.intent === 'podium_leaderboard')
-      return this.podiumLeaderboard(context, originalText, { get, keys });
-    if (intent?.intent === 'race_win_leaderboard')
-      return this.raceWinLeaderboard(context, originalText, { get, keys });
-    if (intent?.intent === 'event_pole')
-      return this.eventPole(intent.eventName, context, originalText, { get, keys });
-    if (intent?.intent === 'event_fastest_lap')
-      return this.eventFastestLap(intent.eventName, context, originalText, { get, keys });
-    if (intent?.intent === 'event_pit_stops')
-      return this.eventPitStops(intent, context, originalText, { get, keys });
-    if (intent?.intent === 'event_session_metric')
-      return intent.scope === 'circuit' || intent.circuitName
-        ? this.circuitSessionMetric(intent, context, originalText, { get, keys })
-        : this.eventSessionMetric(intent, context, originalText, { get, keys });
-    if (intent?.intent === 'circuit_race_winners')
-      return this.circuitRaceWinners(intent, { get, keys });
-    if (intent?.intent === 'country_race_winners')
-      return this.countryRaceWinners(intent, { get, keys });
-    return this.result(
-      {
-        status: 'unsupported',
-        message: 'That question is not supported by the archive query layer yet.',
-        reasonCode: 'QUESTION_INTENT_UNSUPPORTED',
-      },
-      [],
-    );
+    return dispatchPlan(this, { ...checked.plan, originalText }, context, helpers, originalText);
   }
 
   async profiles({ get, keys }) {
@@ -1544,7 +1461,7 @@ export class QuestionService {
           .map((driver) => [row.entry?.id, driver]),
       ),
     );
-    const stops = pitSet.items
+    let stops = pitSet.items
       .map((stop) => ({ ...stop, driver: driverByEntry.get(stop.entryId) }))
       .filter((stop) => stop.driver);
     if (!stops.length)
@@ -1553,6 +1470,26 @@ export class QuestionService {
           status: 'unavailable',
           message: `The pit-stop records for ${event?.name || 'that event'} cannot be linked to published drivers.`,
           reasonCode: 'PIT_STOP_ENTRANT_MAPPING_UNAVAILABLE',
+        },
+        [resolved.set, pitSet, resultSet, detail],
+      );
+    if (intent.driverName)
+      stops = stops.filter(
+        (stop) => normalize(stop.driver.displayName) === normalize(intent.driverName),
+      );
+    if (intent.metric === 'pit_stops' && !intent.driverName)
+      return this.result(
+        {
+          status: 'answered',
+          resolvedIntent: 'event_pit_stops',
+          templateKey: 'event_pit_stop_total',
+          values: {
+            answer:
+              'The ' + (event?.name || 'event') + ' has ' + stops.length + ' published pit stops.',
+            event: event?.name || 'Not supplied',
+            count: stops.length,
+          },
+          evidenceIds: unique([pitSet.evidenceId, resultSet?.evidenceId]),
         },
         [resolved.set, pitSet, resultSet, detail],
       );
@@ -1834,7 +1771,8 @@ export class QuestionService {
         { status: 'clarification', message: 'Which Grand Prix do you mean?', choices: [] },
         [],
       );
-    const sessionId = raceSessionId(resolved.eventId);
+    const sessionId =
+      context.sessionId || `session:${resolved.eventId}:${intent.sessionKind || 'race'}`;
     const detail = await helpers.get(`event:${resolved.eventId}`);
     const event =
       detail?.items?.[0]?.event || resolved.set.items?.find((item) => item.id === resolved.eventId);
@@ -2364,7 +2302,7 @@ export class QuestionService {
     );
   }
 
-  async driverStat(intent, context, { get, keys }, originalText = '') {
+  async driverStat(intent, context, { get, keys, calendarProof }, originalText = '') {
     const { sets, items } = await this.profiles({ get, keys });
     const driver = context.driverId
       ? items.find((profile) => profile.id === context.driverId)
@@ -2388,15 +2326,28 @@ export class QuestionService {
       const driverStandingSets = standingsSets.filter((set) =>
         (set?.items || []).some((row) => row.entity?.id === driver.id),
       );
-      const championships = standingsSets.flatMap((set) => {
-        const match = String(set?.key || '').match(/^standings:(\d{4}):drivers$/);
-        const year = match ? Number(match[1]) : null;
-        if (!year || !inRangeYear(year)) return [];
-        return (set?.items || [])
-          .filter((row) => row.entity?.id === driver.id && row.rank === 1)
-          .map((row) => ({ row, set, year }));
-      });
-      if (!standingsSets.length)
+      const championships = [];
+      const finalized = [];
+      for (const set of standingsSets) {
+        const year = Number(set.key?.match(/^standings:(\d{4}):drivers$/)?.[1]);
+        if (!year || !inRangeYear(year)) continue;
+        const status = await this.championshipStatus(year, set, { get, keys, calendarProof });
+        if (!['final', 'secured'].includes(status)) continue;
+        finalized.push(set);
+        for (const row of set.items || [])
+          if (row.entity?.id === driver.id && row.rank === 1)
+            championships.push({ row, set, year });
+      }
+      if (!finalized.length)
+        return this.result(
+          {
+            status: 'unavailable',
+            message: 'Final championship evidence is not published for the requested period.',
+            reasonCode: 'FINAL_CHAMPIONSHIPS_NOT_PUBLISHED',
+          },
+          standingsSets,
+        );
+      if (!finalized.some((set) => (set.items || []).some((row) => row.entity?.id === driver.id)))
         return this.result(
           {
             status: 'unavailable',
@@ -2406,6 +2357,22 @@ export class QuestionService {
           sets,
         );
       const years = championships.map(({ year }) => year).sort((a, b) => a - b);
+      const finalizedYears = new Set(
+        finalized.map((set) => Number(set.key.match(/^standings:(\d{4}):/)?.[1])),
+      );
+      const requestedYears =
+        range.fromYear && range.toYear
+          ? Array.from(
+              { length: range.toYear - range.fromYear + 1 },
+              (_, index) => range.fromYear + index,
+            )
+          : standingsSets.map((set) => Number(set.key.match(/^standings:(\d{4}):/)?.[1]));
+      const missingYears = requestedYears
+        .filter((year) => !finalizedYears.has(year))
+        .map((year) => ({ year }));
+      const coverageNote = missingYears.length
+        ? ` Only finalized published seasons are counted; missing or unfinished seasons: ${missingYears.map(({ year }) => year).join(', ')}.`
+        : '';
       const scope = range.fromYear
         ? ` from ${range.fromYear}${range.toYear && range.toYear !== range.fromYear ? ` to ${range.toYear}` : ''}`
         : '';
@@ -2418,9 +2385,14 @@ export class QuestionService {
           resolvedIntent: 'driver_stat',
           templateKey: 'driver_championships',
           values: {
-            answer,
+            answer: answer + coverageNote,
             driver: driver.entity.displayName,
             metric: intent.metric,
+            coverage:
+              missingYears.length || finalized.some((set) => set.coverage !== 'complete')
+                ? 'partial'
+                : 'complete',
+            missingYears,
             count: years.length,
             championshipYears: years.join(', ') || 'None published',
             fromYear: range.fromYear,
@@ -2472,7 +2444,7 @@ export class QuestionService {
         did_not_start: (row) => isRaceRow(row) && row.status === 'not-started',
         did_not_qualify: (row) => isRaceRow(row) && row.status === 'not-classified',
       };
-      events = distinctEventRows(rowsForDriver, predicates[metric] || predicates.race_starts);
+      events = distinctEventRows(rowsForDriver, predicates[metric]);
     }
     if (!relevantSets.length)
       return this.result(
@@ -2521,7 +2493,93 @@ export class QuestionService {
     );
   }
 
-  async seasonChampion(intent, context, { get, keys }, originalText = '') {
+  async constructorPointsLeaderboard(intent, _context, { get }) {
+    if (!Number.isInteger(intent.fromYear) || intent.fromYear !== intent.toYear)
+      return this.result(
+        {
+          status: 'clarification',
+          message: 'Choose one championship season for published constructor points.',
+          choices: [],
+        },
+        [],
+      );
+    const set = await get('standings:' + intent.fromYear + ':constructors');
+    const rows = (set?.items || []).filter(
+      (row) =>
+        row.entity?.id &&
+        row.points !== null &&
+        row.points !== undefined &&
+        row.points !== '' &&
+        Number.isFinite(Number(row.points)),
+    );
+    if (!rows.length || !['complete', 'partial'].includes(set?.coverage))
+      return this.result(
+        {
+          status: 'unavailable',
+          message: 'Constructor championship points are not published for this season.',
+          reasonCode: 'CONSTRUCTOR_POINTS_NOT_PUBLISHED',
+        },
+        [set],
+      );
+    const highest = Math.max(...rows.map((row) => Number(row.points)));
+    const leaders = rows.filter((row) => Number(row.points) === highest);
+    return this.result(
+      {
+        status: 'answered',
+        resolvedIntent: 'constructor_points_leaderboard',
+        templateKey: 'constructor_points_leaderboard',
+        values: {
+          answer:
+            leaders.map((row) => row.entity.displayName).join(' and ') +
+            ' scored the most published constructor championship points in ' +
+            intent.fromYear +
+            ': ' +
+            highest +
+            '.',
+          constructor: leaders.map((row) => row.entity.displayName).join(' and '),
+          points: highest,
+          year: intent.fromYear,
+          tied: leaders.length > 1,
+          coverage: set.coverage,
+        },
+        evidenceIds: [set.evidenceId].filter(Boolean),
+      },
+      [set],
+    );
+  }
+
+  async championshipStatus(year, standings, { get, calendarProof }) {
+    const calendar = await get('events:' + year);
+    const events = (calendar?.items || []).filter(
+      (event) => !['cancelled', 'postponed'].includes(event.status),
+    );
+    const standingRound = Number(standings?.items?.[0]?.standingSnapshotId?.split(':').at(-1));
+    if (
+      (calendar?.coverage === 'complete' || (await calendarProof?.(year, calendar))?.complete) &&
+      events.length &&
+      events.every((event) => ['completed', 'finished'].includes(event.status)) &&
+      standingRound === Math.max(...events.map((event) => event.round))
+    )
+      return 'final';
+    const projected = await new StandingOutlookService().project(standings, {
+      year,
+      kind: standings?.items?.[0]?.entity?.id?.startsWith('constructor:')
+        ? 'constructors'
+        : 'drivers',
+      snapshotId: null,
+      readMany: async (keys) =>
+        new Map(await Promise.all(keys.map(async (key) => [key, await get(key)]))),
+    });
+    if (
+      Number(projected?.titleOutlook?.sufficientAdditional) === 0 &&
+      projected?.titleOutlook?.sufficientAdditional !== null &&
+      projected.titleOutlook.coverage !== 'unavailable'
+    )
+      return 'secured';
+    return 'leader';
+  }
+
+  async seasonChampion(intent, context, { get, keys, calendarProof }, originalText = '') {
     const range =
       intent.fromYear !== null && intent.fromYear !== undefined
         ? { fromYear: intent.fromYear, toYear: intent.toYear ?? intent.fromYear }
@@ -2535,8 +2593,19 @@ export class QuestionService {
         },
         [],
       );
-    const sets = await Promise.all((await keys(`standings:${range.fromYear}:drivers`)).map(get));
-    const standingSet = sets.find((set) => (set?.items || []).length);
+    const latest = await get(`standings:${range.fromYear}:drivers`);
+    const sets = latest
+      ? [latest]
+      : await Promise.all((await keys(`standings:${range.fromYear}:drivers`)).map(get));
+    const standingSet =
+      latest ||
+      sets
+        .filter((set) => (set?.items || []).length)
+        .sort(
+          (a, b) =>
+            Number(b.items[0]?.standingSnapshotId?.split(':').at(-1)) -
+            Number(a.items[0]?.standingSnapshotId?.split(':').at(-1)),
+        )[0];
     const champion = standingSet?.items?.find((row) => row.rank === 1 && row.entity);
     if (!champion)
       return this.result(
@@ -2548,25 +2617,52 @@ export class QuestionService {
         sets,
       );
     const name = champion.entity.displayName;
+    const championshipStatus = await this.championshipStatus(range.fromYear, standingSet, {
+      get,
+      keys,
+      calendarProof,
+    });
+    const calendar = await get(`events:${range.fromYear}`);
+    const proof =
+      championshipStatus === 'final' ? await calendarProof?.(range.fromYear, calendar) : null;
     return this.result(
       {
         status: 'answered',
         resolvedIntent: 'season_champion',
         templateKey: 'season_champion',
         values: {
-          answer: `${name} won the ${range.fromYear} Formula One World Championship.`,
-          champion: name,
+          answer:
+            championshipStatus === 'final'
+              ? `${name} won the ${range.fromYear} Formula One World Championship.`
+              : championshipStatus === 'secured'
+                ? `${name} has secured the ${range.fromYear} drivers championship under the published title-outlook assumptions.`
+                : `${name} leads the published ${range.fromYear} drivers championship standings; a final championship outcome is not established.`,
+          championshipStatus,
+          champion: championshipStatus === 'leader' ? null : name,
+          points: champion.points,
+          round: Number(champion.standingSnapshotId?.split(':').at(-1)) || null,
+          coverageNote:
+            championshipStatus === 'leader'
+              ? 'The pinned calendar lacks a linked exhaustive collection or final-round proof; rank one alone does not establish a final champion.'
+              : proof?.proofType === 'inferred-content-match'
+                ? 'Finality corroborated by identical published calendar content; original observation linkage is not claimed.'
+                : 'Published final-round or conditional secured-title evidence.',
           driver: name,
           year: range.fromYear,
           metric: 'world_championship',
         },
-        evidenceIds: unique(sets.map((set) => set?.evidenceId)),
+        evidenceIds: unique([...sets, calendar].map((set) => set?.evidenceId)),
       },
-      sets,
+      [...sets, calendar],
     );
   }
 
-  async constructorChampionshipLeaderboard(intent, context, { get }, originalText = '') {
+  async constructorChampionshipLeaderboard(
+    intent,
+    context,
+    { get, calendarProof },
+    originalText = '',
+  ) {
     const range =
       Number.isInteger(intent.fromYear) && Number.isInteger(intent.toYear)
         ? { fromYear: intent.fromYear, toYear: intent.toYear }
@@ -2587,12 +2683,24 @@ export class QuestionService {
 
     const sets = [];
     const champions = new Map();
+    const missingYears = [];
     for (let year = range.fromYear; year <= range.toYear; year += 1) {
       const set = await get(`standings:${year}:constructors`);
-      if (!set) continue;
+      if (
+        !set ||
+        !['final', 'secured'].includes(
+          await this.championshipStatus(year, set, { get, calendarProof }),
+        )
+      ) {
+        missingYears.push(year);
+        continue;
+      }
       sets.push(set);
       const champion = set.items?.find((row) => row.rank === 1 && row.entity?.id);
-      if (!champion) continue;
+      if (!champion) {
+        missingYears.push(year);
+        continue;
+      }
       const entry = champions.get(champion.entity.id) || {
         id: champion.entity.id,
         name: champion.entity.displayName,
@@ -2618,6 +2726,9 @@ export class QuestionService {
       );
 
     const names = topLeaders.map((entry) => entry.name);
+    const coverageNote = missingYears.length
+      ? ` Missing or unfinished seasons: ${missingYears.join(', ')}; this is a published-subset total.`
+      : '';
     const answer =
       topLeaders.length === 1
         ? `${names[0]} won ${titleCount} constructors' title${titleCount === 1 ? '' : 's'} from ${range.fromYear} to ${range.toYear}.`
@@ -2628,7 +2739,9 @@ export class QuestionService {
         resolvedIntent: 'constructor_championship_leaderboard',
         templateKey: 'constructor_championship_leaderboard',
         values: {
-          answer,
+          answer: answer + coverageNote,
+          coverage: missingYears.length ? 'partial' : 'complete',
+          missingYears: missingYears.map((year) => ({ year })),
           constructor: names.join(', '),
           constructors: names.join(', '),
           metric: 'constructors_titles',
@@ -2647,7 +2760,12 @@ export class QuestionService {
     );
   }
 
-  async constructorRivalryComparison(intent, context, { get, keys }, originalText = '') {
+  async constructorRivalryComparison(
+    intent,
+    context,
+    { get, keys, calendarProof },
+    originalText = '',
+  ) {
     const range =
       Number.isInteger(intent.fromYear) && Number.isInteger(intent.toYear)
         ? { fromYear: intent.fromYear, toYear: intent.toYear }
@@ -2670,7 +2788,21 @@ export class QuestionService {
     const titleCounts = new Map();
     for (let year = range.fromYear; year <= range.toYear; year += 1) {
       const set = await get(`standings:${year}:constructors`);
-      if (!set) continue;
+      if (
+        !set ||
+        !['final', 'secured'].includes(
+          await this.championshipStatus(year, set, { get, calendarProof }),
+        )
+      )
+        return this.result(
+          {
+            status: 'unavailable',
+            message:
+              'Final championship evidence is missing for part of the requested rivalry period.',
+            reasonCode: 'CONSTRUCTOR_RIVALRY_NOT_PUBLISHED',
+          },
+          standingsSets,
+        );
       standingsSets.push(set);
       const champion = set.items?.find((row) => row.rank === 1 && row.entity?.id);
       if (!champion) continue;
@@ -3515,9 +3647,12 @@ export class QuestionService {
       );
 
     const season = Number(intent.fromYear ?? intent.toYear);
+    const toYear = Number(intent.toYear ?? season);
     const resultSets = await Promise.all((await keys('results:')).map(get));
     const inSeason = (row) =>
-      isRaceRow(row) && yearFromEventId(sessionEventId(row.sessionId)) === season;
+      isRaceRow(row) &&
+      yearFromEventId(sessionEventId(row.sessionId)) >= season &&
+      yearFromEventId(sessionEventId(row.sessionId)) <= toYear;
     const relevantSets = resultSets.filter((set) => (set?.items || []).some(inSeason));
     const raceRows = relevantSets.flatMap((set) => (set?.items || []).filter(inSeason));
     const evidenceSets = relevantSets.length ? relevantSets : resultSets;
@@ -3531,36 +3666,45 @@ export class QuestionService {
         [...sets, ...evidenceSets],
       );
 
+    if (!raceRows.some((row) => driverNames(row).some((entry) => entry.id === driver.id)))
+      return this.result(
+        {
+          status: 'unavailable',
+          message: 'No participation rows for this driver are published in the requested period.',
+          reasonCode: 'DRIVER_PARTICIPATION_NOT_PUBLISHED',
+        },
+        evidenceSets,
+      );
     const wins = raceRows.filter(
       (row) =>
         isRaceStart(row) &&
         row.position === 1 &&
         driverNames(row).some((entryDriver) => entryDriver.id === driver.id),
     );
-    const coverage = evidenceSets.some(
-      (set) => set?.coverage !== 'complete' || set?.warnings?.length,
-    )
-      ? 'partial'
-      : 'complete';
-    const count = wins.length;
+    const coverageInfo = await raceCoverage(evidenceSets, season, toYear, { get, keys });
+    const { coverage, missingYears, missingEvents } = coverageInfo;
+    const count = new Set(wins.map((row) => sessionEventId(row.sessionId))).size;
+    const periodLabel = season === toYear ? `in ${season}` : `from ${season} to ${toYear}`;
     return this.result(
       {
         status: 'answered',
         resolvedIntent: 'driver_race_wins_season',
         templateKey: 'driver_race_wins_season',
         values: {
-          answer: `${driver.entity.displayName} won ${count} race${count === 1 ? '' : 's'} in ${season}.`,
+          answer: `${driver.entity.displayName} won ${count} race${count === 1 ? '' : 's'} ${periodLabel}.`,
           driver: driver.entity.displayName,
           metric: 'race_wins',
           season,
           count,
           fromYear: season,
-          toYear: season,
+          toYear,
           coverage,
+          missingYears,
+          missingEvents,
           ...(coverage === 'partial'
             ? {
                 coverageNote:
-                  'The count uses published race-result rows from the selected season only.',
+                  'The count uses published race-result rows from the selected season or inclusive period only.',
               }
             : {}),
         },
@@ -3657,6 +3801,30 @@ export class QuestionService {
       );
 
     const resultSets = await Promise.all((await keys('results:')).map(get));
+    const rows = resultSets.flatMap((set) => set?.items || []).filter(isRaceRow);
+    if (
+      ![driver, comparisonDriver].every((profile) =>
+        rows.some((row) => driverNames(row).some((entry) => entry.id === profile.id)),
+      )
+    )
+      return this.result(
+        {
+          status: 'unavailable',
+          message:
+            'Participation for both drivers is not published in this period; no missing total is treated as zero.',
+          reasonCode: 'DRIVER_COMPARISON_PARTICIPATION_NOT_PUBLISHED',
+        },
+        resultSets,
+      );
+    const coverageInfo = await raceCoverage(resultSets, intent.fromYear, intent.toYear, {
+      get,
+      keys,
+    });
+    const period = intent.fromYear
+      ? intent.fromYear === intent.toYear
+        ? ` in ${intent.fromYear}`
+        : ` from ${intent.fromYear} to ${intent.toYear}`
+      : ' in the published archive';
     const driverWins = this.collectDriverWins(driver.id, resultSets);
     const comparisonWins = this.collectDriverWins(comparisonDriver.id, resultSets);
     const driverCount = driverWins.size;
@@ -3667,11 +3835,14 @@ export class QuestionService {
         resolvedIntent: 'driver_race_wins_comparison',
         templateKey: 'driver_race_wins_comparison',
         values: {
-          answer: `${driver.entity.displayName} has won ${driverCount} race${driverCount === 1 ? '' : 's'}, compared with ${comparisonDriver.entity.displayName}'s ${comparisonCount}.`,
+          answer: `${driver.entity.displayName} has won ${driverCount} race${driverCount === 1 ? '' : 's'}, compared with ${comparisonDriver.entity.displayName}'s ${comparisonCount}${period}.`,
+          ...coverageInfo,
           driver: driver.entity.displayName,
           count: driverCount,
           comparisonDriver: comparisonDriver.entity.displayName,
           comparisonCount,
+          fromYear: intent.fromYear,
+          toYear: intent.toYear,
         },
         evidenceIds: unique([
           ...Array.from(driverWins.values(), (set) => set?.evidenceId),

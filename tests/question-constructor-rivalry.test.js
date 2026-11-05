@@ -32,6 +32,17 @@ function addRivalryArchive(repository) {
 
   for (const year of Object.keys(champions).map(Number)) {
     const champion = champions[year];
+    const calendar = structuredClone(repository.sets.get('events:2024'));
+    calendar.key = 'events:' + year;
+    calendar.coverage = 'complete';
+    calendar.items = calendar.items.map((event) => ({
+      ...event,
+      id: 'event:' + year + ':final',
+      year,
+      round: 1,
+      status: 'completed',
+    }));
+    repository.sets.set(calendar.key, calendar);
     const items = [champion, ...constructors.filter((name) => name !== champion)].map(
       (name, index) => ({
         ...standingSource.items[0],

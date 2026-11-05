@@ -5,18 +5,24 @@ export function requestLog(logger) {
     req.requestId = randomUUID();
     res.setHeader('X-Request-Id', req.requestId);
     const start = Date.now();
-    res.on('finish', () =>
+    let logged = false;
+    const log = (completed) => {
+      if (logged) return;
+      logged = true;
       logger.info(
         {
           requestId: req.requestId,
           method: req.method,
           route: req.route?.path || 'unmatched',
-          status: res.statusCode,
+          status: completed ? res.statusCode : null,
+          completed,
           durationMs: Date.now() - start,
         },
         'request',
-      ),
-    );
+      );
+    };
+    res.once('finish', () => log(true));
+    res.once('close', () => log(res.writableFinished === true));
     next();
   };
 }
@@ -31,7 +37,21 @@ export function errorHandler(logger) {
           ? 400
           : 500;
     if (status >= 500)
-      logger.error({ requestId: req.requestId, errorType: err.name }, 'request failed');
+      logger.error(
+        {
+          requestId: req.requestId,
+          errorType: err.name,
+          ...(err.code === 'RESPONSE_CONTRACT_INVALID'
+            ? {
+                failureCode: err.code,
+                responseSchema: /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(err.responseSchema || '')
+                  ? err.responseSchema
+                  : null,
+              }
+            : {}),
+        },
+        'request failed',
+      );
     res.status(status).json({
       error: {
         code: known ? err.code : status === 400 ? 'INVALID_REQUEST' : 'INTERNAL_ERROR',
